@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .models import AnalysisResult, SourceRef
+from .scoring import CATEGORY_LABELS
 
 RECOMMENDATION = {"go": "✅ تقدّم (Go)", "review": "⚠️ مراجعة قبل القرار", "no_go": "⛔ لا تتقدّم (No-Go)"}
 CONFIDENCE = {"high": "عالية", "medium": "متوسطة", "low": "منخفضة"}
@@ -70,7 +71,7 @@ def render_markdown(result: AnalysisResult) -> str:
         head, sep = head + " الحالة | الإجراء المقترح |", sep + "---|---|"
     out += [head, sep]
     for r in ex.requirements:
-        row = f"| {r.id} | {r.category} | {_cell(r.text)} | {'نعم' if r.mandatory else 'لا'} | {_src(r.source)} |"
+        row = f"| {r.id} | {CATEGORY_LABELS[r.category]} | {_cell(r.text)} | {'نعم' if r.mandatory else 'لا'} | {_src(r.source)} |"
         if status:
             a = status.get(r.id)
             row += f" {STATUS[a.status] if a else '—'} | {_cell(a.gap_action or '') if a else ''} |"

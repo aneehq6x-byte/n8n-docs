@@ -130,6 +130,13 @@ def test_api_markdown_and_errors(make_analyzer, extraction, profile, blank_pdf):
     r = client.post("/v1/analyze", files={"file": ("t.pdf", blank_pdf, "application/pdf")})
     assert r.status_code == 200 and r.json()["extraction"]["tender_reference"] == "2026-OM-114"
 
+    # Stored analyses re-render without a model call; the demo UI uses this.
+    rep = client.post("/v1/report", json=r.json())
+    assert rep.status_code == 200 and "2026-OM-114" in rep.text
+
+    ui = client.get("/")
+    assert ui.status_code == 200 and 'dir="rtl"' in ui.text
+
     r = client.post("/v1/analyze", files={"file": ("t.txt", b"hello", "text/plain")})
     assert r.status_code == 422
 

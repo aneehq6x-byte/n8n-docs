@@ -47,11 +47,13 @@ cp .env.example .env   # ضع ANTHROPIC_API_KEY أو استخدم `ant auth logi
 # سطر الأوامر
 tenderpilot-analyze tender.pdf --profile examples/company_profile.json -o report.md --json analysis.json
 
-# واجهة HTTP
+# واجهة العرض + HTTP API — افتح http://localhost:8000 لرفع الكراسة ورؤية التقرير
 uvicorn tenderpilot_analyzer.api:app --reload
 curl -F file=@tender.pdf -F company_profile="$(cat examples/company_profile.json)" \
      "http://localhost:8000/v1/analyze?format=markdown"
 ```
+
+واجهة العرض (`/`) مخصصة لاجتماعات البيع وللتسليم الداخلي: رفع الكراسة وملف الشركة، بطاقة الدرجة والعوامل، التقرير الكامل، وتنزيله (Markdown/JSON) أو طباعته PDF. تعمل بلا مكتبات خارجية من CDN لأن شبكات الجهات والشركات الكبيرة كثيراً ما تحجبها، وكل نص يُعرض بعد تهريبه (escaping). `POST /v1/report` يعيد توليد التقرير من تحليل محفوظ دون استدعاء النموذج.
 
 Docker:
 

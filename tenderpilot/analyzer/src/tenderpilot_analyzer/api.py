@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Annotated, Literal
 
 import anthropic
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import ValidationError
 
 from . import __version__
@@ -18,6 +19,8 @@ from .pdf import DocumentError
 from .report import render_markdown
 
 log = logging.getLogger(__name__)
+
+STATIC_DIR = Path(__file__).with_name("static")
 
 
 def create_app(analyzer: TenderAnalyzer | None = None) -> FastAPI:
@@ -69,6 +72,15 @@ def create_app(analyzer: TenderAnalyzer | None = None) -> FastAPI:
         if format == "markdown":
             return PlainTextResponse(render_markdown(result), media_type="text/markdown; charset=utf-8")
         return result
+
+    @app.post("/v1/report", response_class=PlainTextResponse)
+    def report(result: AnalysisResult) -> PlainTextResponse:
+        """Re-render the executive report from a stored analysis (no model call)."""
+        return PlainTextResponse(render_markdown(result), media_type="text/markdown; charset=utf-8")
+
+    @app.get("/", include_in_schema=False)
+    def index() -> FileResponse:
+        return FileResponse(STATIC_DIR / "index.html")
 
     return app
 
