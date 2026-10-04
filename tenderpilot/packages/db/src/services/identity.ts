@@ -1,8 +1,9 @@
 import bcrypt from "bcryptjs";
 import { asc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { roleSchema, type Role } from "@tenderpilot/core";
+import { roleSchema, sectorSchema, type Role } from "@tenderpilot/core";
 import { writeAudit } from "../audit";
+import { upsertCompanyProfile } from "./company-profile";
 import type { Database, DbExecutor } from "../client";
 import { memberships, orgs, subscriptions, users } from "../schema";
 
@@ -60,8 +61,11 @@ export const createOrgInputSchema = z.object({
     .regex(/^\d{10}$/, "CR number must be 10 digits")
     .optional()
     .or(z.literal("").transform(() => undefined)),
+  /** Seed the bidding profile so the very first Scout run produces scored opportunities. */
+  sectors: z.array(sectorSchema).min(1),
+  maxContractValue: z.coerce.number().positive().max(10_000_000_000),
 });
-export type CreateOrgInput = z.infer<typeof createOrgInputSchema>;
+export type CreateOrgInput = z.input<typeof createOrgInputSchema>;
 
 function slugify(nameEn: string): string {
   const base = nameEn
@@ -88,6 +92,14 @@ export async function createOrgWithOwner(tx: DbExecutor, ownerUserId: string, in
     plan: "trial",
     status: "trialing",
     currentPeriodEnd: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000),
+  });
+  await upsertCompanyProfile(tx, org.id, {
+    legalNameAr: data.nameAr,
+    legalNameEn: data.nameEn,
+    sectors: data.sectors,
+    maxContractValue: data.maxContractValue,
+    // Typical Saudi contractor: turnover ≈ 2× largest comfortable contract. Editable later.
+    annualTurnover: data.maxContractValue * 2,
   });
   await writeAudit(tx, { orgId: org.id, actorUserId: ownerUserId, action: "org.created", targetType: "org", targetId: org.id });
   return org;

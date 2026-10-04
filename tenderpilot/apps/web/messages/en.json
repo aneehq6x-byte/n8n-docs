@@ -49,6 +49,10 @@
     "nameEn": "Company name (English)",
     "crNumber": "Commercial Registration (CR) number",
     "crHint": "10 digits, optional.",
+    "sectors": "Sectors you bid in",
+    "sectorsHint": "Select at least one. Used to match tenders to your company.",
+    "maxContractValue": "Largest contract you can comfortably deliver (SAR)",
+    "maxContractValueHint": "Used to judge whether a tender's value fits your capacity.",
     "submit": "Create workspace",
     "invalidInput": "Please check the highlighted fields."
   },

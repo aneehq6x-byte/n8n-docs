@@ -21,6 +21,8 @@ export async function createOrgAction(_prev: OnboardingState, formData: FormData
     nameAr: formData.get("nameAr"),
     nameEn: formData.get("nameEn"),
     crNumber: formData.get("crNumber") ?? "",
+    sectors: formData.getAll("sectors"),
+    maxContractValue: formData.get("maxContractValue"),
   });
   if (!parsed.success) {
     return { error: "invalidInput", fields: parsed.error.issues.map((i) => String(i.path[0])) };
