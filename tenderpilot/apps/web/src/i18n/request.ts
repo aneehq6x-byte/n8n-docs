@@ -16,6 +16,8 @@ export default getRequestConfig(async ({ requestLocale }) => {
         sar: { style: "currency", currency: "SAR", maximumFractionDigits: 0, numberingSystem: "latn" },
         compact: { notation: "compact", maximumFractionDigits: 1, numberingSystem: "latn" },
         plain: { maximumFractionDigits: 1, numberingSystem: "latn" },
+        // Opportunity scores always show one decimal so 92.0 and 99.2 read as the same kind of value.
+        score: { minimumFractionDigits: 1, maximumFractionDigits: 1, numberingSystem: "latn" },
       },
       dateTime: {
         short: { day: "numeric", month: "short", year: "numeric", calendar: "gregory", numberingSystem: "latn" },

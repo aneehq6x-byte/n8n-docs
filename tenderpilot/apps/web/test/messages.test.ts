@@ -8,7 +8,10 @@ function keyPaths(obj: unknown, prefix = ""): string[] {
 }
 
 function placeholders(obj: unknown, prefix = ""): Record<string, string[]> {
-  if (typeof obj === "string") return { [prefix]: [...obj.matchAll(/\{(\w+)/g)].map((m) => m[1] ?? "").sort() };
+  // Real ICU arguments look like `{name}` or `{count, plural, …}` — plural branch text does not.
+  if (typeof obj === "string") {
+    return { [prefix]: [...new Set([...obj.matchAll(/\{(\w+)\s*[,}]/g)].map((m) => m[1] ?? ""))].sort() };
+  }
   if (typeof obj !== "object" || obj === null) return {};
   return Object.assign(
     {},

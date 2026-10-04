@@ -33,7 +33,8 @@ export function SignUpForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
+    // method="post": if JS ever fails to load, a native submit must never put credentials in the URL.
+    <form onSubmit={onSubmit} method="post" className="flex flex-col gap-4" noValidate>
       <div className="flex flex-col gap-2">
         <Label htmlFor="name">{t("name")}</Label>
         <Input id="name" name="name" autoComplete="name" required aria-invalid={invalid("name")} />

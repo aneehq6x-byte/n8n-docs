@@ -17,10 +17,11 @@ export function LocaleSwitcher() {
   const searchParams = useSearchParams();
   const next = locale === "ar" ? "en" : "ar";
   return (
+    // Accessible name = the visible text (WCAG 2.5.3); the "Language" hint goes in the tooltip.
     <Button
       variant="ghost"
       size="sm"
-      aria-label={t("language")}
+      title={t("language")}
       onClick={() => {
         const qs = searchParams.toString();
         router.replace(qs ? `${pathname}?${qs}` : pathname, { locale: next });

@@ -16,13 +16,9 @@ export const scoutRouter = router({
   /** On-demand Scout run for the caller's org (deduplicated per org in the queue). */
   trigger: requirePermission("scout:run").mutation(async ({ ctx }) => {
     try {
+      // Audit first: a fast worker may finish before we return, and status() compares the two timestamps.
+      await writeAudit(ctx.db, { orgId: ctx.orgId, actorUserId: ctx.user.id, action: "scout.triggered" });
       const { jobId } = await withTimeout(enqueueScoutForOrg(ctx.orgId, ctx.user.id), ENQUEUE_TIMEOUT_MS);
-      await writeAudit(ctx.db, {
-        orgId: ctx.orgId,
-        actorUserId: ctx.user.id,
-        action: "scout.triggered",
-        metadata: { jobId },
-      });
       return { queued: true as const, jobId };
     } catch (err) {
       console.error("scout enqueue failed", err);
@@ -36,7 +32,12 @@ export const scoutRouter = router({
       latestAuditEvent(ctx.db, ctx.orgId, "scout.completed"),
       latestAuditEvent(ctx.db, ctx.orgId, "scout.triggered"),
     ]);
-    const running = Boolean(triggered && (!completed || triggered.createdAt > completed.createdAt));
+    // A run that never completed (e.g. enqueue failed) stops counting as "running" after 10 minutes.
+    const running = Boolean(
+      triggered &&
+        (!completed || triggered.createdAt > completed.createdAt) &&
+        Date.now() - triggered.createdAt.getTime() < 10 * 60 * 1000,
+    );
     return {
       lastCompletedAt: completed?.createdAt ?? null,
       lastTriggeredAt: triggered?.createdAt ?? null,

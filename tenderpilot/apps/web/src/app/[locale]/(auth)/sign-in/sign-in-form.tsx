@@ -34,7 +34,8 @@ export function SignInForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
+    // method="post": if JS ever fails to load, a native submit must never put credentials in the URL.
+    <form onSubmit={onSubmit} method="post" className="flex flex-col gap-4" noValidate>
       <div className="flex flex-col gap-2">
         <Label htmlFor="email">{t("email")}</Label>
         <Input id="email" name="email" type="email" autoComplete="email" required dir="ltr" className="text-start" />
