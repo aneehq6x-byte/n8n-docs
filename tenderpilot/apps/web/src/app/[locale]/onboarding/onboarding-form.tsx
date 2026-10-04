@@ -3,7 +3,7 @@
 import { Loader2 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useActionState } from "react";
-import { SECTORS, SECTOR_LABELS } from "@tenderpilot/core";
+import { SECTORS, SECTOR_LABELS } from "@tenderpilot/core/domain";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input, Label } from "@/components/ui/form";
 import { createOrgAction, type OnboardingState } from "./actions";

@@ -17,7 +17,7 @@
     "db:generate": "pnpm --filter @tenderpilot/db db:generate",
     "db:migrate": "pnpm --filter @tenderpilot/db db:migrate",
     "db:seed": "pnpm --filter @tenderpilot/db db:seed",
-    "scout:run": "pnpm --filter @tenderpilot/db scout:run",
+    "scout:run": "pnpm --filter @tenderpilot/jobs scout:run",
     "worker": "pnpm --filter @tenderpilot/worker start"
   },
   "devDependencies": {

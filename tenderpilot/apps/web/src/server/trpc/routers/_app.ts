@@ -1,5 +1,6 @@
 import { ROLE_PERMISSIONS } from "@tenderpilot/core";
 import { orgProcedure, router } from "../init";
+import { scoutRouter } from "./scout";
 
 export const appRouter = router({
   me: orgProcedure.query(({ ctx }) => ({
@@ -8,6 +9,7 @@ export const appRouter = router({
     role: ctx.role,
     permissions: [...ROLE_PERMISSIONS[ctx.role]],
   })),
+  scout: scoutRouter,
 });
 
 export type AppRouter = typeof appRouter;

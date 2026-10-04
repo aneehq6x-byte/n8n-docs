@@ -1,0 +1,21 @@
+{
+  "name": "@tenderpilot/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx --env-file-if-exists=../../.env src/main.ts",
+    "dev": "tsx watch --env-file-if-exists=../../.env src/main.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tenderpilot/config": "workspace:*",
+    "@tenderpilot/db": "workspace:*",
+    "@tenderpilot/jobs": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.23.15",
+    "typescript": "5.9.3"
+  }
+}
