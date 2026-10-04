@@ -6,7 +6,7 @@ from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.oxml.ns import qn
-import copy
+from pathlib import Path
 
 # ---------- Brand palette ----------
 BG_DARK   = RGBColor(0x0B, 0x1F, 0x2A)   # deep petrol blue
@@ -463,5 +463,5 @@ txt(s, Inches(2.7), Inches(5.05), Inches(7.9), Inches(0.5),
 txt(s, Inches(1.0), Inches(6.2), Inches(11.3), Inches(0.6),
     "Let's build it.", size=22, color=WHITE, bold=True, align=PP_ALIGN.CENTER, rtl=False)
 
-prs.save("/home/user/n8n-docs/TenderPilot_AI_Pitch_Deck.pptx")
-print("SAVED:", len(prs.slides.__iter__.__self__._sldIdLst), "slides")
+prs.save(Path(__file__).with_name("TenderPilot_AI_Pitch_Deck.pptx"))
+print("SAVED:", len(prs.slides._sldIdLst), "slides")
