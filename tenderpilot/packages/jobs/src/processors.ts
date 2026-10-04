@@ -1,11 +1,11 @@
 import type { Job } from "bullmq";
 import type { ScoutIngestedEvent } from "@tenderpilot/core";
-import { getDb, listOrgIds, runScoutForOrg } from "@tenderpilot/db";
+import { getDb, listOrgIds, rescoreOrg, runScoutForOrg } from "@tenderpilot/db";
 import { buildConnectors, scoutSince } from "./connectors";
-import { scoutJobSchema } from "./payloads";
+import { scoringJobOrgId, scoringJobSchema, scoutJobSchema } from "./payloads";
 import { enqueueScoring, enqueueScoutForOrg } from "./queues";
 
-/** Ingest one org and publish the typed event downstream. */
+/** Ingest one org and publish the typed event downstream to scoring. */
 export async function scoutOrg(orgId: string, actorUserId: string | null): Promise<ScoutIngestedEvent> {
   const event = await runScoutForOrg(getDb(), orgId, {
     connectors: buildConnectors(),
@@ -26,4 +26,13 @@ export async function processScoutJob(job: Job<unknown>) {
   }
   const event = await scoutOrg(data.orgId, data.actorUserId);
   return { created: event.createdTenderIds.length, updated: event.updatedTenderIds.length, failures: event.failures };
+}
+
+/** BullMQ processor for the `scoring` queue: tender ingest / profile change → refresh opportunities. */
+export async function processScoringJob(job: Job<unknown>) {
+  const data = scoringJobSchema.parse(job.data);
+  return rescoreOrg(getDb(), scoringJobOrgId(data), {
+    reason: data.kind,
+    actorUserId: data.kind === "scout.ingested" ? null : data.actorUserId,
+  });
 }

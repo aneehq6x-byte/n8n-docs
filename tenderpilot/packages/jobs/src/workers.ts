@@ -1,6 +1,6 @@
 import { Worker } from "bullmq";
-import { SCOUT_QUEUE } from "./payloads";
-import { processScoutJob } from "./processors";
+import { SCORING_QUEUE, SCOUT_QUEUE } from "./payloads";
+import { processScoringJob, processScoutJob } from "./processors";
 import { createRedisClient } from "./queues";
 
 /**
@@ -14,5 +14,10 @@ export function createWorkers(): Worker[] {
     // Low concurrency: be a polite client to government portals.
     concurrency: 2,
   });
-  return [scout];
+  const scoring = new Worker(SCORING_QUEUE, processScoringJob, {
+    connection: createRedisClient(),
+    // Scoring is CPU-light and per-org deduplicated; moderate parallelism is safe.
+    concurrency: 4,
+  });
+  return [scout, scoring];
 }

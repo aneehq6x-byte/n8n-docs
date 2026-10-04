@@ -5,6 +5,7 @@ import { syncReferenceData } from "./reference-data";
 import { memberships, users } from "./schema";
 import { upsertCertifications, upsertCompanyProfile } from "./services/company-profile";
 import { createOrgWithOwner, createUser, EmailTakenError } from "./services/identity";
+import { rescoreOrg } from "./services/scoring";
 
 export const DEMO_USER = {
   email: "demo@tenderpilot.sa",
@@ -68,5 +69,14 @@ export async function seedDemo(db: Database, now: Date = new Date()) {
     return saved;
   });
 
-  return { userEmail: DEMO_USER.email, password: DEMO_USER.password, orgId, companyProfileId: profile.id };
+  // Profile (re)written → refresh any opportunities for tenders already ingested.
+  const rescored = await rescoreOrg(db, orgId, { reason: "seed", asOf: now });
+
+  return {
+    userEmail: DEMO_USER.email,
+    password: DEMO_USER.password,
+    orgId,
+    companyProfileId: profile.id,
+    opportunitiesScored: rescored.scored,
+  };
 }
