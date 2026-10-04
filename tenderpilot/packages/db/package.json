@@ -1,0 +1,35 @@
+{
+  "name": "@tenderpilot/db",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Drizzle schema, Postgres client, repositories and application services",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx --env-file-if-exists=../../.env scripts/migrate.ts",
+    "db:seed": "tsx --env-file-if-exists=../../.env scripts/seed.ts",
+    "scout:run": "tsx --env-file-if-exists=../../.env scripts/scout-run.ts"
+  },
+  "dependencies": {
+    "@tenderpilot/config": "workspace:*",
+    "@tenderpilot/core": "workspace:*",
+    "bcryptjs": "^3.0.3",
+    "drizzle-orm": "^0.45.3",
+    "postgres": "^3.4.9",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

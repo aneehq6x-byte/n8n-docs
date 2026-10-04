@@ -1,0 +1,34 @@
+{
+  "name": "tenderpilot",
+  "private": true,
+  "version": "0.1.0",
+  "description": "TenderPilot AI — multi-tenant SaaS for discovering and scoring Saudi government tenders",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "db:generate": "pnpm --filter @tenderpilot/db db:generate",
+    "db:migrate": "pnpm --filter @tenderpilot/db db:migrate",
+    "db:seed": "pnpm --filter @tenderpilot/db db:seed",
+    "scout:run": "pnpm --filter @tenderpilot/db scout:run",
+    "worker": "pnpm --filter @tenderpilot/worker start"
+  },
+  "devDependencies": {
+    "turbo": "^2.11.7",
+    "typescript": "5.9.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "msgpackr-extract"
+    ]
+  }
+}
