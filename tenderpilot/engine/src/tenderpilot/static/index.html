@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TenderPilot Analyzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f5f7f9; --panel: #ffffff; --text: #10212b; --muted: #5b6f7c; --line: #dfe5ea;
+  --brand: #0b4f6c; --accent: #b8892f; --go: #1f8a4c; --review: #b7791f; --nogo: #c0392b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b1f2a; --panel: #122e3d; --text: #eef3f6; --muted: #9db2bf; --line: #1f4253;
+    --brand: #3fc1b0; --accent: #d9b36a; --go: #4cc27a; --review: #e0b04c; --nogo: #e06b6b;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b1f2a; --panel: #122e3d; --text: #eef3f6; --muted: #9db2bf; --line: #1f4253;
+  --brand: #3fc1b0; --accent: #d9b36a; --go: #4cc27a; --review: #e0b04c; --nogo: #e06b6b;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.7 "IBM Plex Sans Arabic", system-ui, sans-serif; }
+header { display: flex; justify-content: space-between; align-items: center;
+  padding: 16px; max-width: 1100px; margin: 0 auto; }
+header b { font-size: 20px; } header b span { color: var(--accent); }
+button.ghost { background: none; border: 1px solid var(--line); color: var(--text);
+  border-radius: 8px; padding: 6px 12px; cursor: pointer; font: inherit; }
+main { max-width: 1100px; margin: 0 auto; padding: 0 16px 48px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 16px; }
+h1 { font-size: 26px; margin: 0 0 4px; } .muted { color: var(--muted); }
+label { display: block; font-weight: 600; margin: 14px 0 6px; }
+input[type=file], textarea { width: 100%; font: inherit; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+textarea { min-height: 140px; direction: ltr; text-align: left; font-family: ui-monospace, monospace; font-size: 13px; }
+.primary { margin-top: 16px; background: var(--brand); color: #fff; border: 0; border-radius: 10px;
+  padding: 12px 22px; font: inherit; font-weight: 700; cursor: pointer; }
+.primary:disabled { opacity: .6; cursor: wait; }
+.error { color: var(--nogo); font-weight: 600; }
+.score { display: grid; grid-template-columns: 160px 1fr; gap: 20px; align-items: center; }
+.ring { width: 150px; height: 150px; border-radius: 50%; display: grid; place-items: center;
+  background: conic-gradient(var(--c) calc(var(--v) * 1%), var(--line) 0); }
+.ring div { width: 118px; height: 118px; border-radius: 50%; background: var(--panel);
+  display: grid; place-items: center; font-size: 38px; font-weight: 700; }
+.badge { display: inline-block; padding: 4px 12px; border-radius: 999px; color: #fff; font-weight: 700; }
+.factors { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+.factors td { border-top: 1px solid var(--line); padding: 6px 4px; }
+.pos { color: var(--go); } .neg { color: var(--nogo); }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+#report { overflow-x: auto; }
+#report table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 8px 0 18px; }
+#report td:nth-child(2) { unicode-bidi: plaintext; }
+#report th, #report td { border: 1px solid var(--line); padding: 6px 8px; vertical-align: top; }
+#report th { background: var(--bg); }
+@media (max-width: 640px) { .score { grid-template-columns: 1fr; justify-items: center; } }
+</style>
+</head>
+<body>
+<header>
+  <b>Tender<span>Pilot</span> AI</b>
+  <button class="ghost" id="theme" type="button">الوضع ◐</button>
+</header>
+<main>
+  <section class="panel">
+    <h1>تحليل كراسة الشروط</h1>
+    <p class="muted">ارفع الكراسة (PDF). أرفق ملف الشركة للحصول على Opportunity Score وتوصية القرار.</p>
+    <form id="form">
+      <label for="file">كراسة الشروط (PDF)</label>
+      <input id="file" type="file" accept="application/pdf" required>
+      <label for="profile">ملف الشركة (JSON — اختياري)</label>
+      <textarea id="profile" placeholder='{"name": "...", "certifications": ["ISO 9001"], "max_single_contract_sar": 15000000}'></textarea>
+      <button class="primary" id="go" type="submit">حلّل الكراسة</button>
+      <span id="status" class="muted"></span>
+    </form>
+  </section>
+
+  <section class="panel" id="scorePanel" hidden></section>
+
+  <section class="panel" id="reportPanel" hidden>
+    <div class="actions">
+      <button class="ghost" id="dlMd" type="button">تنزيل التقرير (.md)</button>
+      <button class="ghost" id="dlJson" type="button">تنزيل البيانات (.json)</button>
+      <button class="ghost" id="print" type="button">طباعة / PDF</button>
+    </div>
+    <article id="report"></article>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const REC = { go: ["تقدّم (Go)", "--go"], review: ["مراجعة قبل القرار", "--review"], no_go: ["لا تتقدّم (No-Go)", "--nogo"] };
+const CONF = { high: "عالية", medium: "متوسطة", low: "منخفضة" };
+let lastResult = null, lastReport = "";
+
+try { const t = localStorage.getItem("tp-theme"); if (t) document.documentElement.dataset.theme = t; } catch {}
+$("theme").onclick = () => {
+  const current = document.documentElement.dataset.theme
+    || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  const next = current === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem("tp-theme", next); } catch {}
+};
+
+function esc(s) { const d = document.createElement("div"); d.textContent = s ?? ""; return d.innerHTML; }
+
+// Renders the Markdown subset report.py emits. All text is escaped before any
+// markup is added, so model-generated content can't inject HTML. No external
+// libraries: customer networks often block CDNs.
+function inline(s) {
+  return esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/^_(.+)_$/, "<em>$1</em>");
+}
+function cells(line) {
+  return line.trim().replace(/^\||\|$/g, "").split(/(?<!\\)\|/).map(c => c.replace(/\\\|/g, "|").trim());
+}
+function mdToHtml(md) {
+  const lines = md.split("\n"), out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    if (l.startsWith("|")) {
+      const head = cells(l); i += 1; // skip the |---| separator
+      const rows = [];
+      while (i + 1 < lines.length && lines[i + 1].startsWith("|")) rows.push(cells(lines[++i]));
+      out.push("<table><thead><tr>" + head.map(c => `<th>${inline(c)}</th>`).join("") + "</tr></thead><tbody>"
+        + rows.map(r => "<tr>" + r.map(c => `<td>${inline(c)}</td>`).join("") + "</tr>").join("") + "</tbody></table>");
+    } else if (/^#{1,3} /.test(l)) {
+      const n = l.indexOf(" ");
+      out.push(`<h${n}>${inline(l.slice(n + 1))}</h${n}>`);
+    } else if (/^(- |\d+\. )/.test(l)) {
+      const ordered = /^\d/.test(l), items = [];
+      i -= 1;
+      while (i + 1 < lines.length && /^(- |\d+\. )/.test(lines[i + 1])) {
+        items.push(inline(lines[++i].replace(/^(- |\d+\. )/, "")).replace(/^\[ \] /, "☐ "));
+      }
+      const tag = ordered ? "ol" : "ul";
+      out.push(`<${tag}>${items.map(x => `<li>${x}</li>`).join("")}</${tag}>`);
+    } else if (l.trim() === "---") {
+      out.push("<hr>");
+    } else if (l.trim()) {
+      out.push(`<p>${inline(l)}</p>`);
+    }
+  }
+  return out.join("\n");
+}
+
+function renderScore(score) {
+  const p = $("scorePanel");
+  if (!score) { p.hidden = true; return; }
+  const [label, color] = REC[score.recommendation];
+  const rows = score.factors.map(f =>
+    `<tr><td>${esc(f.label)}</td><td class="${f.impact >= 0 ? "pos" : "neg"}" dir="ltr">${f.impact > 0 ? "+" : ""}${f.impact}</td><td class="muted">${esc(f.detail)}</td></tr>`).join("");
+  const gaps = score.blocking_gaps.length
+    ? `<p class="error">فجوات قد تؤدي للاستبعاد:</p><ul>${score.blocking_gaps.map(g => `<li>${esc(g)}</li>`).join("")}</ul>` : "";
+  p.innerHTML = `<div class="score">
+      <div class="ring" style="--v:${score.score};--c:var(${color})"><div>${score.score}</div></div>
+      <div><span class="badge" style="background:var(${color})">${label}</span>
+        <span class="muted">· الثقة: ${CONF[score.confidence]}</span>
+        <table class="factors">${rows}</table>${gaps}</div></div>`;
+  p.hidden = false;
+}
+
+function download(name, text, type) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name; a.click(); URL.revokeObjectURL(a.href);
+}
+$("dlMd").onclick = () => download("tender-report.md", lastReport, "text/markdown");
+$("dlJson").onclick = () => download("tender-analysis.json", JSON.stringify(lastResult, null, 2), "application/json");
+$("print").onclick = () => window.print();
+
+$("form").onsubmit = async (e) => {
+  e.preventDefault();
+  const fd = new FormData();
+  fd.append("file", $("file").files[0]);
+  const profile = $("profile").value.trim();
+  if (profile) {
+    try { JSON.parse(profile); } catch { $("status").innerHTML = '<span class="error">ملف الشركة ليس JSON صالحاً.</span>'; return; }
+    fd.append("company_profile", profile);
+  }
+  $("go").disabled = true;
+  const started = Date.now();
+  const timer = setInterval(() => {
+    $("status").textContent = ` جارٍ التحليل… ${Math.round((Date.now() - started) / 1000)} ث (قد يستغرق بضع دقائق للكراسات الطويلة)`;
+  }, 1000);
+  try {
+    const r = await fetch("/v1/analyze", { method: "POST", body: fd });
+    const body = await r.json();
+    if (!r.ok) throw new Error(typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail));
+    lastResult = body;
+    renderScore(body.score);
+    const rep = await fetch("/v1/report", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    lastReport = await rep.text();
+    $("report").innerHTML = mdToHtml(lastReport);
+    $("reportPanel").hidden = false;
+    $("status").textContent = ` اكتمل في ${Math.round((Date.now() - started) / 1000)} ث`;
+  } catch (err) {
+    $("status").innerHTML = `<span class="error">${esc(err.message)}</span>`;
+  } finally {
+    clearInterval(timer); $("go").disabled = false;
+  }
+};
+</script>
+</body>
+</html>
