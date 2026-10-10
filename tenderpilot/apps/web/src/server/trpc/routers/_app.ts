@@ -1,5 +1,6 @@
 import { ROLE_PERMISSIONS } from "@tenderpilot/core";
 import { orgProcedure, router } from "../init";
+import { billingRouter } from "./billing";
 import { dashboardRouter, opportunitiesRouter } from "./opportunities";
 import { profileRouter } from "./profile";
 import { scoutRouter } from "./scout";
@@ -12,6 +13,7 @@ export const appRouter = router({
     role: ctx.role,
     permissions: [...ROLE_PERMISSIONS[ctx.role]],
   })),
+  billing: billingRouter,
   dashboard: dashboardRouter,
   opportunities: opportunitiesRouter,
   profile: profileRouter,

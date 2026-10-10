@@ -1,6 +1,6 @@
 import type { Job } from "bullmq";
 import type { ScoutIngestedEvent } from "@tenderpilot/core";
-import { getDb, listOrgIds, rescoreOrg, runScoutForOrg } from "@tenderpilot/db";
+import { getDb, listActiveOrgIds, rescoreOrg, runScoutForOrg } from "@tenderpilot/db";
 import { buildConnectors, scoutSince } from "./connectors";
 import { scoringJobOrgId, scoringJobSchema, scoutJobSchema } from "./payloads";
 import { enqueueScoring, enqueueScoutForOrg } from "./queues";
@@ -20,7 +20,8 @@ export async function scoutOrg(orgId: string, actorUserId: string | null): Promi
 export async function processScoutJob(job: Job<unknown>) {
   const data = scoutJobSchema.parse(job.data);
   if (data.kind === "sweep") {
-    const orgIds = await listOrgIds(getDb());
+    // Only orgs with a live trial/subscription are swept on schedule.
+    const orgIds = await listActiveOrgIds(getDb());
     await Promise.all(orgIds.map((id) => enqueueScoutForOrg(id, null)));
     return { fannedOut: orgIds.length };
   }

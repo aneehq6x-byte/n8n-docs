@@ -28,6 +28,9 @@ const serverEnvSchema = z.object({
   SMTP_URL: z.string().optional(),
   MAIL_FROM: z.string().default("TenderPilot <no-reply@tenderpilot.sa>"),
   MAIL_OUTBOX_FILE: z.string().optional(),
+  /** Moyasar secret key (sk_test_… / sk_live_…). Unset = online checkout disabled. */
+  MOYASAR_SECRET_KEY: z.string().optional(),
+  MOYASAR_API_URL: z.url().default("https://api.moyasar.com/v1"),
   /** Where secrets come from: plain env, or Azure Key Vault (hydrated at boot). */
   SECRETS_PROVIDER: z.enum(["env", "azure-keyvault"]).default("env"),
   AZURE_KEYVAULT_URL: z.url().optional(),

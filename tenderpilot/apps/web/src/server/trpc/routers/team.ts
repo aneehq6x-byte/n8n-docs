@@ -6,6 +6,7 @@ import {
   TeamError,
   changeMemberRole,
   createInvitation,
+  getOrgEntitlements,
   listMembers,
   listPendingInvitations,
   removeMember,
@@ -59,6 +60,9 @@ export const teamRouter = router({
     .input(z.object({ email: z.string(), role: roleSchema, locale: z.enum(["ar", "en"]) }))
     .mutation(({ ctx, input }) =>
       run(async () => {
+        if (!(await getOrgEntitlements(ctx.db, ctx.orgId)).active) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "SUBSCRIPTION_INACTIVE" });
+        }
         const { token, invitation } = await createInvitation(ctx.db, ctx.orgId, { userId: ctx.user.id, role: ctx.role }, input);
         await getMailer().send(
           invitationEmail({

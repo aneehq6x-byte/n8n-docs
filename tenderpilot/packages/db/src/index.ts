@@ -10,5 +10,6 @@ export * from "./services/opportunities";
 export * from "./services/profile-editor";
 export * from "./services/team";
 export * from "./services/password-reset";
+export * from "./services/billing";
 export * from "./tokens";
 export * as schema from "./schema";

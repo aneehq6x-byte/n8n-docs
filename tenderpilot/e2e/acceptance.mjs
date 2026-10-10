@@ -226,6 +226,29 @@ if (process.env.MAIL_OUTBOX_FILE) {
   check("owner removed the member", true);
 }
 
+// 6d. Billing: plan picker → hosted payment (fake Moyasar) → verified activation; forged callbacks rejected
+if (process.env.FAKE_MOYASAR === "1") {
+  await page.goto(`${BASE}/ar/billing`);
+  await page.waitForLoadState("networkidle");
+  check("billing page shows VAT-inclusive prices", await page.getByText(/ضريبة القيمة المضافة/).first().isVisible());
+  check("charged amounts shown exact to the halala", await page.getByText(/2,863\.50/).first().isVisible());
+  await page.screenshot({ path: OUT + "14-ar-billing.png", fullPage: true });
+  await page.getByRole("button", { name: /اختيار خطة الاحترافية/ }).click();
+  await page.waitForURL(/localhost:3200\/pay\//, { timeout: 15_000 });
+  check("redirected to hosted payment for 2,863.50 SAR", await page.getByText("Pay 2863.50 SAR").isVisible());
+  await page.getByRole("button", { name: "Pay now" }).click();
+  await page.waitForURL(/\/ar\/billing\/return/, { timeout: 15_000 });
+  check("payment verified server-side and plan activated", await page.getByText("تم استلام الدفعة").isVisible());
+  await page.goto(`${BASE}/ar/billing`);
+  check("plan is now Professional (active)", await page.getByText("الاحترافية").first().isVisible() && (await page.getByText("نشطة").first().isVisible()));
+  check("payment appears in history as paid", await page.getByText("مدفوعة").first().isVisible());
+
+  const forged = await page.request.post(`${BASE}/api/billing/moyasar`, { data: { id: "inv_forged", status: "paid", amount: 100 } });
+  check("forged callback for unknown invoice rejected", forged.status() === 404, `status=${forged.status()}`);
+  const junk = await page.request.post(`${BASE}/api/billing/moyasar`, { data: { id: "../../etc" } });
+  check("malformed callback rejected", junk.status() === 400, `status=${junk.status()}`);
+}
+
 // 7. Dark mode + mobile RTL
 const dark = await browser.newContext({ viewport: { width: 1440, height: 1000 }, colorScheme: "dark", storageState: await ctx.storageState() });
 const dp = await dark.newPage();

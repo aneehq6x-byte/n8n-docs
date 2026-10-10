@@ -11,12 +11,14 @@ export function AppShell({
   userName,
   orgs,
   activeOrgId,
+  banner,
   children,
 }: {
   orgName: string;
   userName: string;
   orgs: { id: string; name: string }[];
   activeOrgId: string;
+  banner?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -50,6 +52,7 @@ export function AppShell({
             <NavLinks orientation="horizontal" />
           </div>
         </header>
+        {banner}
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 md:px-6">{children}</main>
       </div>
     </div>

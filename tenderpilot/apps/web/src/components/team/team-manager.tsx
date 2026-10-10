@@ -22,7 +22,7 @@ export interface TeamOverview {
   assignableRoles: Role[];
 }
 
-const TEAM_ERROR_KEYS = ["FORBIDDEN_ROLE", "ALREADY_MEMBER", "SEAT_LIMIT", "NOT_FOUND", "OWNER_PROTECTED"] as const;
+const TEAM_ERROR_KEYS = ["FORBIDDEN_ROLE", "ALREADY_MEMBER", "SEAT_LIMIT", "NOT_FOUND", "OWNER_PROTECTED", "SUBSCRIPTION_INACTIVE"] as const;
 type TeamErrorKey = (typeof TEAM_ERROR_KEYS)[number] | "generic";
 
 function errorKey(err: unknown): TeamErrorKey {

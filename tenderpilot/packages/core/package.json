@@ -10,7 +10,8 @@
     ".": "./src/index.ts",
     "./domain": "./src/domain/index.ts",
     "./scoring": "./src/scoring/index.ts",
-    "./rbac": "./src/rbac/index.ts"
+    "./rbac": "./src/rbac/index.ts",
+    "./billing": "./src/billing/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

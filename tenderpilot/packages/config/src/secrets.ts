@@ -58,6 +58,7 @@ export const MANAGED_SECRET_KEYS = [
   "S3_ACCESS_KEY",
   "S3_SECRET_KEY",
   "SMTP_URL",
+  "MOYASAR_SECRET_KEY",
 ] as const;
 
 /** Copy secrets from the provider into process.env (existing values win). */

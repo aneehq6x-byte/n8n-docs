@@ -14,6 +14,8 @@ export default getRequestConfig(async ({ requestLocale }) => {
     formats: {
       number: {
         sar: { style: "currency", currency: "SAR", maximumFractionDigits: 0, numberingSystem: "latn" },
+        // Money that is actually charged: always exact to the halala.
+        sarExact: { style: "currency", currency: "SAR", minimumFractionDigits: 2, maximumFractionDigits: 2, numberingSystem: "latn" },
         compact: { notation: "compact", maximumFractionDigits: 1, numberingSystem: "latn" },
         plain: { maximumFractionDigits: 1, numberingSystem: "latn" },
         // Opportunity scores always show one decimal so 92.0 and 99.2 read as the same kind of value.

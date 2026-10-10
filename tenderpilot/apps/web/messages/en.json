@@ -24,7 +24,8 @@
     "dashboard": "Dashboard",
     "opportunities": "Opportunities",
     "profile": "Company profile",
-    "team": "Team"
+    "team": "Team",
+    "billing": "Plan & billing"
   },
   "auth": {
     "signInTitle": "Sign in to TenderPilot",
@@ -114,7 +115,9 @@
     "queued": "Scout started — results will appear shortly.",
     "done": "Scout finished — opportunities updated.",
     "unavailable": "The Scout service is unavailable. Please try again shortly.",
-    "forbidden": "You don't have permission to run the Scout."
+    "forbidden": "You don't have permission to run the Scout.",
+    "inactive": "Your plan is inactive. Renew it to run the Scout.",
+    "dailyLimit": "You've reached today's manual Scout runs for your plan. Scheduled sweeps continue automatically."
   },
   "opportunities": {
     "title": "Opportunities",
@@ -372,7 +375,8 @@
       "NOT_FOUND": "That member or invitation no longer exists.",
       "OWNER_PROTECTED": "The owner can't be changed or removed here.",
       "invalidEmail": "Enter a valid email address.",
-      "generic": "Something went wrong. Please try again."
+      "generic": "Something went wrong. Please try again.",
+      "SUBSCRIPTION_INACTIVE": "Your plan is inactive. Renew it to invite teammates."
     }
   },
   "invite": {
@@ -388,5 +392,69 @@
     "revoked": "This invitation was revoked.",
     "notFound": "This invitation link is invalid.",
     "error": "We couldn't accept this invitation. Please try again."
+  },
+  "billing": {
+    "title": "Plan & billing",
+    "subtitle": "Your subscription, limits and payments. Prices in SAR, VAT shown separately.",
+    "current": "Current plan",
+    "status": {
+      "trialing": "Trial",
+      "active": "Active",
+      "past_due": "Payment overdue",
+      "canceled": "Canceled"
+    },
+    "inactive": "Inactive",
+    "periodEnds": "{days, plural, =0 {Ended} one {# day left · ends {date}} other {# days left · ends {date}}}",
+    "seatsLimit": "{seats} seats",
+    "runsLimit": "{runs} manual Scout runs / day",
+    "plans": {
+      "trial": "Trial",
+      "starter": "Starter",
+      "professional": "Professional",
+      "enterprise": "Enterprise"
+    },
+    "planBlurb": {
+      "starter": "For contractors tracking a focused set of sectors.",
+      "professional": "For bid teams running a full tender pipeline."
+    },
+    "monthly": "Monthly",
+    "annual": "Annual",
+    "annualSave": "2 months free",
+    "perMonth": "/ month",
+    "perYear": "/ year",
+    "vatLine": "+ VAT {vat} · total {total}",
+    "choose": "Choose {plan}",
+    "currentBadge": "Current plan",
+    "redirecting": "Redirecting to secure payment…",
+    "checkoutDisabled": "Online payment isn't enabled yet. Contact sales@tenderpilot.sa to upgrade.",
+    "enterprise": "Need more seats, SSO or custom connectors? Contact sales@tenderpilot.sa for Enterprise.",
+    "readOnly": "Only the owner can change the plan or pay.",
+    "historyTitle": "Payment history",
+    "historyEmpty": "No payments yet.",
+    "checkoutStatus": {
+      "pending": "Pending",
+      "paid": "Paid",
+      "failed": "Failed",
+      "expired": "Expired"
+    },
+    "errors": {
+      "CHECKOUT_DISABLED": "Online payment isn't enabled yet.",
+      "GATEWAY_ERROR": "The payment provider is unavailable. Please try again.",
+      "generic": "Couldn't start the payment. Please try again."
+    },
+    "return": {
+      "paid": "Payment received — your plan is active.",
+      "pending": "We're still waiting for the payment to be confirmed. This page will update once it is.",
+      "failed": "The payment didn't go through. You haven't been charged.",
+      "expired": "The payment link expired. Please start again.",
+      "notFound": "We couldn't find that payment.",
+      "back": "Back to plan & billing"
+    },
+    "banner": {
+      "trialEnding": "{days, plural, one {Your trial ends in # day.} other {Your trial ends in # days.}} Choose a plan to keep scouting.",
+      "pastDue": "Your payment is overdue. Renew to avoid interruption.",
+      "inactive": "Your plan is inactive — Scout runs and invitations are paused.",
+      "cta": "View plans"
+    }
   }
 }

@@ -1,6 +1,6 @@
 import { relations } from "drizzle-orm";
 import { index, integer, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
-import type { Permission, Role } from "@tenderpilot/core";
+import type { BillingInterval, Permission, PlanId, Role, SubscriptionStatus } from "@tenderpilot/core";
 import { auditColumns } from "./columns";
 
 /**
@@ -53,17 +53,15 @@ export const memberships = pgTable(
   (t) => [unique("memberships_org_user_unique").on(t.orgId, t.userId), index("memberships_user_idx").on(t.userId)],
 );
 
-export const SUBSCRIPTION_PLANS = ["trial", "starter", "professional", "enterprise"] as const;
-export const SUBSCRIPTION_STATUSES = ["trialing", "active", "past_due", "canceled"] as const;
-
 export const subscriptions = pgTable("subscriptions", {
   id: uuid("id").primaryKey().defaultRandom(),
   orgId: uuid("org_id")
     .notNull()
     .unique()
     .references(() => orgs.id, { onDelete: "cascade" }),
-  plan: text("plan").$type<(typeof SUBSCRIPTION_PLANS)[number]>().notNull().default("trial"),
-  status: text("status").$type<(typeof SUBSCRIPTION_STATUSES)[number]>().notNull().default("trialing"),
+  plan: text("plan").$type<PlanId>().notNull().default("trial"),
+  status: text("status").$type<SubscriptionStatus>().notNull().default("trialing"),
+  billingInterval: text("billing_interval").$type<BillingInterval>(),
   seats: integer("seats").notNull().default(3),
   currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }).notNull(),
   ...auditColumns,

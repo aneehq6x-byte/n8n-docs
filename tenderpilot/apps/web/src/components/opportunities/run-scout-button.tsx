@@ -30,8 +30,17 @@ export function RunScoutButton({ size, variant }: Pick<ButtonProps, "size" | "va
       },
       onError: (err) => {
         setPhase("error");
+        const reason = err instanceof TRPCClientError ? err.message : "";
         const code = err instanceof TRPCClientError ? (err.data as { code?: string } | undefined)?.code : undefined;
-        setMessage(code === "FORBIDDEN" ? t("forbidden") : t("unavailable"));
+        setMessage(
+          reason === "SUBSCRIPTION_INACTIVE"
+            ? t("inactive")
+            : reason === "DAILY_LIMIT"
+              ? t("dailyLimit")
+              : code === "FORBIDDEN"
+                ? t("forbidden")
+                : t("unavailable"),
+        );
       },
     }),
   );

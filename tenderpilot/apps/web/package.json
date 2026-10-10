@@ -17,6 +17,7 @@
     "@tenderpilot/db": "workspace:*",
     "@tenderpilot/jobs": "workspace:*",
     "@tenderpilot/mail": "workspace:*",
+    "@tenderpilot/payments": "workspace:*",
     "@trpc/client": "^11.19.0",
     "@trpc/server": "^11.19.0",
     "@trpc/tanstack-react-query": "^11.19.0",

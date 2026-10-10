@@ -10,7 +10,9 @@ function keyPaths(obj: unknown, prefix = ""): string[] {
 function placeholders(obj: unknown, prefix = ""): Record<string, string[]> {
   // Real ICU arguments look like `{name}` or `{count, plural, …}` — plural branch text does not.
   if (typeof obj === "string") {
-    return { [prefix]: [...new Set([...obj.matchAll(/\{(\w+)\s*[,}]/g)].map((m) => m[1] ?? ""))].sort() };
+    // Braces right after a plural/select selector (`=0 {…}`, `one {…}`) are branch bodies, not arguments.
+    const args = /(?<!(?:=\d+|zero|one|two|few|many|other)\s*)\{(\w+)\s*[,}]/g;
+    return { [prefix]: [...new Set([...obj.matchAll(args)].map((m) => m[1] ?? ""))].sort() };
   }
   if (typeof obj !== "object" || obj === null) return {};
   return Object.assign(

@@ -17,6 +17,9 @@ export const AUDIT_ACTIONS = [
   "member.removed",
   "password.reset_requested",
   "password.reset",
+  "billing.checkout_started",
+  "billing.payment_succeeded",
+  "billing.payment_failed",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
