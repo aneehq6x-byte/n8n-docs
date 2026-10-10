@@ -112,6 +112,34 @@ await page.screenshot({ path: OUT + "07-en-dashboard.png", fullPage: true });
 await page.goto(`${BASE}/en/opportunities`);
 await page.screenshot({ path: OUT + "08-en-opportunities.png", fullPage: true });
 
+// 6b. Company profile editor → save → instant re-score with impact (ar)
+await page.goto(`${BASE}/ar/profile`);
+await page.waitForLoadState("networkidle");
+check("profile editor renders (ar)", await page.getByRole("heading", { name: "ملف الشركة" }).first().isVisible());
+await page.screenshot({ path: OUT + "11-ar-profile.png", fullPage: true });
+const certSelects = page.locator('select[id^="cert-type-"]');
+const before = await certSelects.count();
+await page.getByRole("button", { name: "إضافة شهادة" }).click();
+await certSelects.nth(before).selectOption("sfda_license");
+await page.locator('input[id^="cert-issuer-"]').nth(before).fill("الهيئة العامة للغذاء والدواء");
+await page.locator('input[id^="cert-expires-"]').nth(before).fill("2030-01-01");
+await page.getByRole("button", { name: "حفظ وإعادة التقييم" }).click();
+await page.getByText(/تم الحفظ/).waitFor({ timeout: 15_000 });
+check("profile save re-scores with impact", await page.getByText(/تحسّنت/).first().isVisible());
+await page.screenshot({ path: OUT + "12-ar-profile-saved.png" });
+// validation: duplicate certification is caught client-side
+await page.getByRole("button", { name: "إضافة شهادة" }).click();
+await certSelects.nth(before + 1).selectOption("sfda_license");
+await page.getByRole("button", { name: "حفظ وإعادة التقييم" }).click();
+check("duplicate certification rejected", await page.getByText("لا يمكن تكرار الشهادة نفسها.").isVisible());
+// restore: remove both added rows and save (also exercises removal)
+const removeCert = page.locator('div.rounded-lg.border:has(select[id^="cert-type-"]) button[aria-label="حذف"]');
+await removeCert.nth(before + 1).click();
+await removeCert.nth(before).click();
+await page.getByRole("button", { name: "حفظ وإعادة التقييم" }).click();
+await page.getByText(/تم الحفظ/).waitFor({ timeout: 15_000 });
+check("profile restored", (await certSelects.count()) === before, `certs=${await certSelects.count()}`);
+
 // 7. Dark mode + mobile RTL
 const dark = await browser.newContext({ viewport: { width: 1440, height: 1000 }, colorScheme: "dark", storageState: await ctx.storageState() });
 const dp = await dark.newPage();

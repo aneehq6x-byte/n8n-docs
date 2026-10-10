@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutDashboard, ListChecks } from "lucide-react";
+import { Building2, LayoutDashboard, ListChecks } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Link, usePathname } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 const ITEMS = [
   { href: "/dashboard", key: "dashboard", icon: LayoutDashboard },
   { href: "/opportunities", key: "opportunities", icon: ListChecks },
+  { href: "/profile", key: "profile", icon: Building2 },
 ] as const;
 
 export function NavLinks({ orientation = "vertical" }: { orientation?: "vertical" | "horizontal" }) {

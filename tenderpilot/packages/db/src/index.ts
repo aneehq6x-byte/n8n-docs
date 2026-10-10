@@ -7,4 +7,5 @@ export * from "./services/company-profile";
 export * from "./services/scout";
 export * from "./services/scoring";
 export * from "./services/opportunities";
+export * from "./services/profile-editor";
 export * as schema from "./schema";

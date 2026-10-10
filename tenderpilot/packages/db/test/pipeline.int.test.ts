@@ -6,6 +6,7 @@ import { syncReferenceData } from "../src/reference-data";
 import { certifications, opportunities, orgs, tenders, users } from "../src/schema";
 import { upsertCertifications, upsertCompanyProfile } from "../src/services/company-profile";
 import { createOrgWithOwner } from "../src/services/identity";
+import { getCompanyProfileForm, saveCompanyProfile } from "../src/services/profile-editor";
 import { rescoreOrg } from "../src/services/scoring";
 import { runScoutForOrg } from "../src/services/scout";
 
@@ -115,6 +116,47 @@ describe.skipIf(!url)("scout → scoring pipeline (Postgres)", () => {
     await rescoreOrg(handle.db, a.orgId, { reason: "manual", asOf: NOW });
     expect(await handle.db.$count(tenders, eq(tenders.orgId, b.orgId))).toBe(0);
     expect(await handle.db.$count(opportunities, eq(opportunities.orgId, b.orgId))).toBe(0);
+  });
+
+  it("saves the profile editor document and reports the re-scoring impact", async () => {
+    const { orgId } = await newOrg("E", true);
+    await runScoutForOrg(handle.db, orgId, { connectors, since: new Date(0), asOf: NOW });
+    await rescoreOrg(handle.db, orgId, { reason: "manual", asOf: NOW });
+
+    const form = await getCompanyProfileForm(handle.db, orgId);
+    if (!form) throw new Error("no profile form");
+    expect(form.certifications).toHaveLength(5);
+
+    // Gain the SFDA license (King Saud Hospital O&M needs it) → that opportunity improves.
+    const gained = await saveCompanyProfile(
+      handle.db,
+      orgId,
+      { ...form, certifications: [...form.certifications, { type: "sfda_license", issuer: "SFDA", issuedAt: "2026-01-01", expiresAt: null }] },
+      userId,
+    );
+    expect(gained.improved).toBeGreaterThanOrEqual(1);
+    expect(gained.declined).toBe(0);
+
+    // Drop the "buildings" classification → building tenders become ineligible.
+    const dropped = await saveCompanyProfile(
+      handle.db,
+      orgId,
+      { ...form, classifications: form.classifications.filter((c) => c.field !== "buildings") },
+      userId,
+    );
+    expect(dropped.newlyDisqualified).toBeGreaterThanOrEqual(3);
+    expect(dropped.averageAfter ?? 0).toBeLessThan(dropped.averageBefore ?? 0);
+
+    // The editor round-trips: SFDA was removed again by the second save (full replace).
+    const after = await getCompanyProfileForm(handle.db, orgId);
+    expect(after?.certifications.map((c) => c.type)).not.toContain("sfda_license");
+  });
+
+  it("rejects an invalid profile document without writing anything", async () => {
+    const { orgId } = await newOrg("F", true);
+    const before = await getCompanyProfileForm(handle.db, orgId);
+    await expect(saveCompanyProfile(handle.db, orgId, { ...before, sectors: [] }, userId)).rejects.toThrow();
+    expect(await getCompanyProfileForm(handle.db, orgId)).toEqual(before);
   });
 
   it("skips scoring for an org without a profile", async () => {

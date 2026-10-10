@@ -21,7 +21,8 @@
   },
   "nav": {
     "dashboard": "Dashboard",
-    "opportunities": "Opportunities"
+    "opportunities": "Opportunities",
+    "profile": "Company profile"
   },
   "auth": {
     "signInTitle": "Sign in to TenderPilot",
@@ -235,6 +236,78 @@
       "citc_license": "CITC License",
       "sfda_license": "SFDA License",
       "local_content_baladi": "Local Content (Baladi)"
+    }
+  },
+  "profile": {
+    "title": "Company profile",
+    "subtitle": "Every tender is scored against this profile — keep it accurate to get accurate scores.",
+    "readOnly": "Only owners and admins can edit the company profile.",
+    "sections": {
+      "basics": "Company basics",
+      "basicsHint": "Legal names and financial capacity.",
+      "sectors": "Sectors",
+      "sectorsHint": "Tenders outside these sectors score 0 on sector match.",
+      "classifications": "Contractor classifications",
+      "classificationsHint": "Your Saudi contractor classification per field. Grade 1 is the strongest.",
+      "certifications": "Certifications",
+      "certificationsHint": "Only certifications valid through a tender's deadline count toward it.",
+      "pastProjects": "Past projects",
+      "pastProjectsHint": "Delivered projects and how well they went — drives past-performance alignment."
+    },
+    "fields": {
+      "legalNameAr": "Legal name (Arabic)",
+      "legalNameEn": "Legal name (English)",
+      "annualTurnover": "Annual turnover (SAR)",
+      "maxContractValue": "Largest comfortable contract (SAR)",
+      "field": "Field",
+      "grade": "Grade",
+      "gradeOption": "Grade {grade}",
+      "type": "Certification",
+      "issuer": "Issuer",
+      "issuedAt": "Issued",
+      "expiresAt": "Expires",
+      "noExpiry": "No expiry",
+      "titleAr": "Project title (Arabic)",
+      "titleEn": "Project title (English)",
+      "sector": "Sector",
+      "value": "Value (SAR)",
+      "performance": "Performance %",
+      "year": "Year"
+    },
+    "add": {
+      "classification": "Add classification",
+      "certification": "Add certification",
+      "project": "Add project"
+    },
+    "remove": "Remove",
+    "empty": {
+      "classifications": "No classifications yet — tenders requiring one will be marked ineligible.",
+      "certifications": "No certifications yet.",
+      "pastProjects": "No past projects yet."
+    },
+    "expired": "Expired",
+    "expiresSoon": "{days, plural, one {Expires in # day} other {Expires in # days}}",
+    "save": "Save and re-score",
+    "saving": "Saving and re-scoring…",
+    "unsaved": "You have unsaved changes",
+    "errors": {
+      "invalid": "Please fix the highlighted fields.",
+      "required": "Required",
+      "number": "Enter a valid number",
+      "DUPLICATE_FIELD": "Each classification field can appear only once.",
+      "DUPLICATE_CERTIFICATION": "Each certification can appear only once.",
+      "EXPIRY_BEFORE_ISSUE": "Expiry must be after the issue date.",
+      "CAPACITY_UNREALISTIC": "The largest contract can't exceed 5× annual turnover.",
+      "save": "Couldn't save the profile. Please try again."
+    },
+    "impact": {
+      "title": "Saved — {count, plural, one {# opportunity} other {# opportunities}} re-scored",
+      "improved": "{count, plural, one {# improved} other {# improved}}",
+      "declined": "{count, plural, one {# declined} other {# declined}}",
+      "newlyEligible": "{count, plural, one {# became eligible} other {# became eligible}}",
+      "newlyDisqualified": "{count, plural, one {# became ineligible} other {# became ineligible}}",
+      "average": "Average score {before} → {after}",
+      "noChange": "No scores changed."
     }
   }
 }
