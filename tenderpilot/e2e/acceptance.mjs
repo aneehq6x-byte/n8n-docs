@@ -249,6 +249,30 @@ if (process.env.FAKE_MOYASAR === "1") {
   check("malformed callback rejected", junk.status() === 400, `status=${junk.status()}`);
 }
 
+// 6e. CSV import: Arabic headers, per-cell errors, partial import → scored opportunities
+{
+  const stamp = Date.now();
+  const csv = [
+    "الرقم المرجعي,اسم المنافسة,الجهة,القطاع,آخر موعد لتقديم العروض,القيمة التقديرية,التصنيف المطلوب",
+    `IMP-${stamp}-1,ترميم مستشفى الولادة في الدمام,وزارة الصحة,construction,15/12/2026,"22,000,000",المباني 3`,
+    `IMP-${stamp}-2,صيانة طرق حي الملقا,أمانة منطقة الرياض,النقل والطرق,2026-12-20,9500000,roads:2`,
+    `IMP-${stamp}-3,صف به أخطاء,جهة,space_mining,31/02/2027,abc,`,
+  ].join("\n");
+  await page.goto(`${BASE}/ar/import`);
+  await page.waitForLoadState("networkidle");
+  await page.locator('input[type="file"]').setInputFiles({ name: "tenders.csv", mimeType: "text/csv", buffer: Buffer.from(csv, "utf8") });
+  await page.getByText("2 من 3 صفًا جاهزة للاستيراد").waitFor({ timeout: 10_000 });
+  check("import preview validates rows", true);
+  check("import reports per-cell errors", (await page.getByText("قطاع غير معروف").isVisible()) && (await page.getByText(/تاريخ غير صالح/).isVisible()));
+  await page.screenshot({ path: OUT + "15-ar-import.png", fullPage: true });
+  await page.getByRole("button", { name: "استيراد منافستين" }).click();
+  await page.getByText(/تم الاستيراد: 2 جديدة/).waitFor({ timeout: 15_000 });
+  check("valid rows imported and scored", true);
+  await page.goto(`${BASE}/ar/opportunities?q=${encodeURIComponent("ترميم مستشفى الولادة")}`);
+  await page.waitForLoadState("networkidle");
+  check("imported tender appears as a scored opportunity", (await page.locator("table tbody tr").count()) === 1);
+}
+
 // 7. Dark mode + mobile RTL
 const dark = await browser.newContext({ viewport: { width: 1440, height: 1000 }, colorScheme: "dark", storageState: await ctx.storageState() });
 const dp = await dark.newPage();

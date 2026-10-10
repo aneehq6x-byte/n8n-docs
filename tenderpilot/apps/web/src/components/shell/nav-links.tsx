@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, CreditCard, LayoutDashboard, ListChecks, Users } from "lucide-react";
+import { Building2, CreditCard, FileUp, LayoutDashboard, ListChecks, Users } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Link, usePathname } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 const ITEMS = [
   { href: "/dashboard", key: "dashboard", icon: LayoutDashboard },
   { href: "/opportunities", key: "opportunities", icon: ListChecks },
+  { href: "/import", key: "import", icon: FileUp },
   { href: "/profile", key: "profile", icon: Building2 },
   { href: "/team", key: "team", icon: Users },
   { href: "/billing", key: "billing", icon: CreditCard },

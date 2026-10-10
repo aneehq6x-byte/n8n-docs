@@ -11,7 +11,8 @@
     "./domain": "./src/domain/index.ts",
     "./scoring": "./src/scoring/index.ts",
     "./rbac": "./src/rbac/index.ts",
-    "./billing": "./src/billing/index.ts"
+    "./billing": "./src/billing/index.ts",
+    "./import": "./src/import/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

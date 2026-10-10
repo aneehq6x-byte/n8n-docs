@@ -25,7 +25,8 @@
     "opportunities": "Opportunities",
     "profile": "Company profile",
     "team": "Team",
-    "billing": "Plan & billing"
+    "billing": "Plan & billing",
+    "import": "Import tenders"
   },
   "auth": {
     "signInTitle": "Sign in to TenderPilot",
@@ -455,6 +456,48 @@
       "pastDue": "Your payment is overdue. Renew to avoid interruption.",
       "inactive": "Your plan is inactive — Scout runs and invitations are paused.",
       "cta": "View plans"
+    }
+  },
+  "import": {
+    "title": "Import tenders",
+    "subtitle": "Bring in tenders from an Etimad export or your own tracker (CSV). Every row is validated, de-duplicated and scored.",
+    "template": "Download template",
+    "templateHint": "Arabic or English headers both work. Required: reference, title (Arabic), issuer (Arabic), sector, deadline.",
+    "choose": "Choose a CSV file",
+    "or": "or paste CSV below",
+    "pasteLabel": "CSV content",
+    "preview": "Validate",
+    "validating": "Validating…",
+    "summary": "{valid} of {total} rows ready to import",
+    "errorsTitle": "{count, plural, one {# problem found} other {# problems found}}",
+    "errorsHint": "Rows with problems are skipped. Fix them and re-upload, or import the valid rows now.",
+    "line": "Line {line}",
+    "sampleTitle": "Preview",
+    "commit": "{count, plural, one {Import # tender} other {Import # tenders}}",
+    "importing": "Importing and scoring…",
+    "done": "Imported: {created} new, {updated} updated · {scored} opportunities re-scored",
+    "viewOpportunities": "View opportunities",
+    "readOnly": "Only analysts, admins and owners can import tenders.",
+    "fileError": {
+      "FILE_TOO_LARGE": "The file is larger than 2 MB.",
+      "EMPTY": "The file has no data rows.",
+      "TOO_MANY_ROWS": "Up to 1,000 rows per import.",
+      "MISSING_COLUMNS": "Missing required columns: {columns}"
+    },
+    "codes": {
+      "REQUIRED": "Required value is empty",
+      "INVALID_SECTOR": "Unknown sector",
+      "INVALID_DATE": "Invalid date (use YYYY-MM-DD or DD/MM/YYYY)",
+      "INVALID_NUMBER": "Not a valid number",
+      "INVALID_CLASSIFICATION": "Use field:grade, e.g. buildings:3",
+      "INVALID_CERTIFICATION": "Unknown certification",
+      "DEADLINE_BEFORE_PUBLISH": "Deadline is before the publish date",
+      "DUPLICATE_REF": "Duplicate reference in this file",
+      "INVALID_ROW": "Row could not be read"
+    },
+    "errors": {
+      "SUBSCRIPTION_INACTIVE": "Your plan is inactive. Renew it to import tenders.",
+      "generic": "The import failed. Please try again."
     }
   }
 }

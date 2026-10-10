@@ -20,6 +20,7 @@ export const AUDIT_ACTIONS = [
   "billing.checkout_started",
   "billing.payment_succeeded",
   "billing.payment_failed",
+  "tenders.imported",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 

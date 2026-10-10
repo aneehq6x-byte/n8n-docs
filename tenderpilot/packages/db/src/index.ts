@@ -11,5 +11,6 @@ export * from "./services/profile-editor";
 export * from "./services/team";
 export * from "./services/password-reset";
 export * from "./services/billing";
+export * from "./services/tender-import";
 export * from "./tokens";
 export * as schema from "./schema";

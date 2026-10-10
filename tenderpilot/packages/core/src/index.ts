@@ -3,5 +3,6 @@ export * from "./domain";
 export * from "./scoring";
 export * from "./scout";
 export * from "./billing";
+export * from "./import";
 export * from "./seed/fixtures";
 export * from "./seed/demo-graph";
