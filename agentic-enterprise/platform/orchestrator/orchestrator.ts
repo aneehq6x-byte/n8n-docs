@@ -1,13 +1,14 @@
 import type { AgentDefinition, AgentOutcome } from "../agent/agent-definition.ts";
 import type { ApprovalGate } from "../approval/approval-gate.ts";
 import type { AuditLog } from "../audit/audit-log.ts";
+import type { Connectors } from "../connectors/types.ts";
 import type { Database } from "../core/db.ts";
 import { parseJson } from "../core/db.ts";
 import type { HumanDirectory } from "../core/directory.ts";
 import { PlatformError } from "../core/errors.ts";
 import type { KillSwitch } from "../core/kill-switch.ts";
 import type { JsonObject } from "../core/types.ts";
-import { newId, type Clock } from "../core/util.ts";
+import { hashObject, newId, type Clock } from "../core/util.ts";
 import type { EscalationService } from "../escalation/escalation.ts";
 import type { MemoryStore } from "../memory/memory-store.ts";
 import type { AgentRuntime } from "../runtime/runtime.ts";
@@ -45,6 +46,7 @@ export interface OrchestratorDeps {
   directory: HumanDirectory;
   clock: Clock;
   executor: () => ToolExecutor;
+  connectors: Connectors;
   runtime: AgentRuntime;
   maxAttempts: number;
 }
@@ -205,7 +207,12 @@ export class Orchestrator {
 
   private settle(task: Task, agent: AgentDefinition, outcome: AgentOutcome): Task {
     const output = outcome as unknown as JsonObject;
-    const handoffs = outcome.handoffs.filter((h) => this.allowHandoff(task, agent, h));
+    const violations = agent.outcomeGuard?.(outcome, { task, connectors: this.deps.connectors }) ?? [];
+    if (violations.length > 0) {
+      this.deps.audit.append({ actor: { type: "system", id: "orchestrator" }, action: "agent.outcome_guard", taskId: task.id, outcome: "denied", data: { violations } });
+      this.deps.escalations.raise({ taskId: task.id, raisedBy: "orchestrator", reason: "guardrail_triggered", severity: "high", toRole: agent.defaultEscalationRole, summary: `Agent outcome rejected by outcome guard: ${violations.join("; ")}`, context: { violations } });
+    }
+    const handoffs = violations.length > 0 ? [] : outcome.handoffs.filter((h) => this.allowHandoff(task, agent, h));
     const pendingApprovals = this.deps.gate.list({ taskId: task.id, status: "pending" });
     const openEscalations = this.deps.escalations.list({ taskId: task.id, status: "open" });
 
@@ -253,7 +260,7 @@ export class Orchestrator {
   }
 
   private spawn(parent: Task, h: Handoff): Task {
-    return this.submit({ type: h.taskType, input: h.input, originator: parent.originator, parentId: parent.id, idempotencyKey: `${parent.id}:${h.taskType}` });
+    return this.submit({ type: h.taskType, input: h.input, originator: parent.originator, parentId: parent.id, idempotencyKey: `${parent.id}:${h.taskType}:${hashObject(h.input).slice(0, 16)}` });
   }
 
   private handleRunError(taskId: string, agent: AgentDefinition, err: unknown): Task {

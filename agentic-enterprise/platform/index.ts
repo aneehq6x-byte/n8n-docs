@@ -70,7 +70,7 @@ export function createPlatform(opts: CreatePlatformOptions = {}): Platform {
   let executor: ToolExecutor;
   const orchestrator = new Orchestrator({
     db, audit, gate, escalations, memory, killSwitch, directory, clock, runtime,
-    executor: () => executor, maxAttempts: 3,
+    executor: () => executor, connectors, maxAttempts: 3,
   });
   executor = new ToolExecutor({
     audit, gate, escalations, memory, killSwitch, connectors, clock,

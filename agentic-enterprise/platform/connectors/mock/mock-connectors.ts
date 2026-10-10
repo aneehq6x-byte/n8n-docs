@@ -1,5 +1,6 @@
 import type { ApprovalGate, ApprovalGrant } from "../../approval/approval-gate.ts";
 import { PlatformError } from "../../core/errors.ts";
+import { toUsd } from "../../core/fx.ts";
 import type { Clock } from "../../core/util.ts";
 import { newId } from "../../core/util.ts";
 import type {
@@ -10,6 +11,7 @@ import type {
   Payment,
   PaymentConnector,
   PurchaseOrder,
+  Requisition,
   SanctionsConnector,
   Supplier,
 } from "../types.ts";
@@ -71,6 +73,19 @@ export class MockErp implements ErpConnector {
       this.data.catalog.filter((c) => (!f.category || c.category === f.category) && (!q || c.description.toLowerCase().includes(q) || c.sku.toLowerCase().includes(q))),
     );
   }
+  getRequisition(id: string) {
+    this.faults.check("erp.getRequisition");
+    return structuredClone(this.data.requisitions.find((r) => r.id === id) ?? null);
+  }
+  recordRequisitionDecision(id: string, status: "approved_for_po" | "rejected" | "escalated", d: { by: string; reasonCode: string; note: string }): Requisition {
+    const req = this.data.requisitions.find((r) => r.id === id);
+    if (!req) throw new PlatformError("NOT_FOUND", `Requisition ${id} not found`);
+    if (req.status === "ordered") throw new PlatformError("CONNECTOR_ERROR", "Requisition already ordered");
+    req.status = status;
+    req.decision = { ...d, at: this.clock.now().toISOString() };
+    this.writes.push({ connector: "erp", method: "recordRequisitionDecision", args: { id, status, reasonCode: d.reasonCode } });
+    return structuredClone(req);
+  }
   listPurchaseOrders(f: { requesterId?: string; costCenter?: string; supplierId?: string; sinceIso?: string }) {
     return structuredClone(
       this.data.purchaseOrders.filter(
@@ -100,7 +115,12 @@ export class MockErp implements ErpConnector {
       createdAt: this.clock.now().toISOString(),
     };
     this.data.purchaseOrders.push(po);
-    if (budget.currency === po.currency) budget.committed = round2(budget.committed + total);
+    // الالتزام يُضاف للميزانية بعملتها، عبر التحويل إلى الدولار.
+    budget.committed = round2(budget.committed + (budget.currency === po.currency ? total : toUsd(total, po.currency) / toUsd(1, budget.currency)));
+    if (po.requisitionId) {
+      const req = this.data.requisitions.find((r) => r.id === po.requisitionId);
+      if (req) (req.status = "ordered"), req.poIds.push(po.id);
+    }
     this.writes.push({ connector: "erp", method: "createPurchaseOrder", args: { poId: po.id, total, currency: po.currency } });
     return structuredClone(po);
   }

@@ -59,6 +59,21 @@ export interface PurchaseOrder {
   status: "open" | "partially_received" | "received" | "closed" | "cancelled";
   createdAt: string;
   sourceTaskId: string;
+  requisitionId?: string;
+}
+
+/** طلب الشراء كما يسجله الموظف في بوابة المشتريات. هو السجل المرجعي، لا نص المهمة. */
+export interface Requisition {
+  id: string;
+  requesterId: string;
+  costCenter: string;
+  neededBy: string;
+  justification: string;
+  lines: Array<{ sku: string | null; description: string; quantity: number }>;
+  status: "submitted" | "approved_for_po" | "rejected" | "escalated" | "ordered";
+  decision: { by: string; reasonCode: string; note: string; at: string } | null;
+  poIds: string[];
+  submittedAt: string;
 }
 
 export interface GoodsReceipt {
@@ -120,6 +135,9 @@ export interface ErpConnector {
   getBudget(costCenter: string): Budget | null;
   getCatalogItem(sku: string): CatalogItem | null;
   searchCatalog(filter: { category?: string; query?: string }): CatalogItem[];
+  getRequisition(id: string): Requisition | null;
+  /** كتابة داخلية قابلة للتراجع: تسجيل قرار الفرز على الطلب. */
+  recordRequisitionDecision(id: string, status: "approved_for_po" | "rejected" | "escalated", decision: { by: string; reasonCode: string; note: string }): Requisition;
   listPurchaseOrders(filter: { requesterId?: string; costCenter?: string; supplierId?: string; sinceIso?: string }): PurchaseOrder[];
   getPurchaseOrder(id: string): PurchaseOrder | null;
   /** إجراء commit_spend: يلزم الشركة ماليًا أمام المورد. */

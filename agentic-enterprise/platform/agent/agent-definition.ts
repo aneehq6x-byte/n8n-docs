@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { z } from "zod";
+import type { Connectors } from "../connectors/types.ts";
 import type { HumanRole } from "../core/types.ts";
 import type { MemoryPolicy } from "../memory/memory-store.ts";
 import type { Task } from "../orchestrator/task.ts";
@@ -68,6 +69,13 @@ export interface AgentDefinition {
   /** حد أقصى لاستدعاءات الأدوات في المهمة الواحدة، للحماية من الحلقات. */
   maxToolCalls: number;
   referencePolicy: ReferencePolicy;
+  /**
+   * حاجز على المخرج النهائي، ويُنفَّذ في Orchestrator قبل قبول المخرج والإحالات.
+   * يعيد قائمة مخالفات، وأي مخالفة تُسقط كل الإحالات وتُصعّد المهمة.
+   * يُستخدم لمطابقة ادعاءات الوكيل مع النظام المرجعي، مثل: لا إحالة لإصدار أمر شراء
+   * إلا إذا كان الطلب مسجلًا في ERP بحالة approved_for_po.
+   */
+  outcomeGuard?: (outcome: AgentOutcome, ctx: { task: Readonly<Task>; connectors: Connectors }) => string[];
 }
 
 export function defineAgent(def: AgentDefinition): AgentDefinition {

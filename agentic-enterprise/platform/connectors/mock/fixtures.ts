@@ -1,4 +1,4 @@
-import type { Budget, CatalogItem, EmailMessage, GoodsReceipt, Invoice, PurchaseOrder, SanctionsEntry, Supplier } from "../types.ts";
+import type { Budget, CatalogItem, EmailMessage, GoodsReceipt, Invoice, PurchaseOrder, Requisition, SanctionsEntry, Supplier } from "../types.ts";
 
 /**
  * بيانات وهمية بالكامل للتطوير والاختبار. أي تشابه مع أسماء حقيقية غير مقصود.
@@ -9,6 +9,7 @@ export interface Fixtures {
   suppliers: Supplier[];
   budgets: Budget[];
   catalog: CatalogItem[];
+  requisitions: Requisition[];
   purchaseOrders: PurchaseOrder[];
   goodsReceipts: GoodsReceipt[];
   invoices: Invoice[];
@@ -46,7 +47,15 @@ const FIXTURES: Fixtures = {
     { sku: "WH-RACK-HD", description: "Heavy-duty racking bay", category: "warehouse", unitPrice: 3_400, currency: "SAR", supplierId: "sup-002", contracted: false },
     { sku: "IT-LAPTOP-14", description: "Business laptop 14in, 32GB", category: "it_hardware", unitPrice: 1_450, currency: "USD", supplierId: "sup-004", contracted: true },
     { sku: "IT-DOCK-USB4", description: "USB4 docking station", category: "it_hardware", unitPrice: 240, currency: "USD", supplierId: "sup-004", contracted: true },
+    { sku: "IT-TABLET-10", description: "Rugged tablet 10in for warehouse scanning", category: "it_hardware", unitPrice: 690, currency: "USD", supplierId: "sup-005", contracted: false },
     { sku: "PK-BOX-M", description: "Corrugated box, medium, bundle of 100", category: "packaging", unitPrice: 310, currency: "AED", supplierId: "sup-007", contracted: true },
+  ],
+  requisitions: [
+    { id: "REQ-2001", requesterId: "u-requester", costCenter: "CC-WH-01", neededBy: "2029-03-20", justification: "Replace broken chairs in dispatch office", lines: [{ sku: "OFF-CHAIR-ERG", description: "Ergonomic office chair", quantity: 8 }], status: "submitted", decision: null, poIds: [], submittedAt: "2029-03-01T07:30:00.000Z" },
+    { id: "REQ-2002", requesterId: "u-requester", costCenter: "CC-MKT-03", neededBy: "2029-03-25", justification: "Trade show shipping material", lines: [{ sku: "WH-PALLET-EUR", description: "EUR pallet", quantity: 50 }, { sku: "WH-SHRINK-500", description: "Shrink wrap", quantity: 60 }], status: "submitted", decision: null, poIds: [], submittedAt: "2029-03-01T07:40:00.000Z" },
+    { id: "REQ-2003", requesterId: "u-requester", costCenter: "CC-IT-02", neededBy: "2029-04-01", justification: "Scanning tablets for new picking zone", lines: [{ sku: "IT-TABLET-10", description: "Rugged tablet", quantity: 12 }], status: "submitted", decision: null, poIds: [], submittedAt: "2029-03-01T07:50:00.000Z" },
+    { id: "REQ-2004", requesterId: "u-requester", costCenter: "CC-WH-01", neededBy: "2029-04-15", justification: "Second forklift for night shift", lines: [{ sku: "WH-FORKLIFT-E25", description: "Electric forklift 2.5t", quantity: 1 }], status: "submitted", decision: null, poIds: [], submittedAt: "2029-03-01T08:00:00.000Z" },
+    { id: "REQ-2005", requesterId: "u-requester", costCenter: "CC-IT-02", neededBy: "2029-03-30", justification: "Laptops for new finance analysts", lines: [{ sku: "IT-LAPTOP-14", description: "Business laptop 14in", quantity: 6 }, { sku: "IT-DOCK-USB4", description: "USB4 dock", quantity: 6 }], status: "approved_for_po", decision: { by: "procurement.requisition-intake", reasonCode: "WITHIN_POLICY", note: "seed", at: "2029-03-01T07:00:00.000Z" }, poIds: [], submittedAt: "2029-03-01T06:00:00.000Z" },
   ],
   purchaseOrders: [
     { id: "PO-1001", supplierId: "sup-001", costCenter: "CC-WH-01", requesterId: "u-requester", currency: "SAR", lines: [{ sku: "OFF-CHAIR-ERG", description: "Ergonomic office chair", quantity: 10, unitPrice: 1_150 }], total: 11_500, status: "received", createdAt: "2029-02-01T09:00:00.000Z", sourceTaskId: "seed" },

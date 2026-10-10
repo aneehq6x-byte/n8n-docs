@@ -113,6 +113,15 @@ describe("Orchestrator", () => {
     expect(p.audit.query({ action: "task.handoff" })[0]!.outcome).toBe("denied");
   });
 
+  it("keeps distinct handoffs of the same type and deduplicates identical ones", async () => {
+    const { p } = testPlatform();
+    const h = (x: number) => ({ taskType: "child.run", input: { x }, when: "now" as const });
+    p.register(testAgent({ canHandoffTo: ["child.run"], policy: async () => done("ok", { handoffs: [h(1), h(2), h(1)] }) }), testAgent({ id: "test.child", handles: ["child.run"] }));
+    const t = p.orchestrator.submit({ type: "test.run", input: {}, originator: "u-requester" });
+    await p.orchestrator.drain();
+    expect(p.orchestrator.list({ parentId: t.id }).map((k) => k.input.x)).toEqual([1, 2]);
+  });
+
   it("defers after_approval handoffs until the approved action executes", async () => {
     const { p } = testPlatform();
     const parent = testAgent({
@@ -135,6 +144,21 @@ describe("Orchestrator", () => {
     p.register(testAgent({ policy: async () => done("lie", { status: "needs_approval" }) }));
     const t = p.orchestrator.submit({ type: "test.run", input: {}, originator: "u-requester" });
     expect((await p.orchestrator.run(t.id)).status).toBe("escalated");
+  });
+
+  it("outcome guard drops handoffs and escalates when claims contradict the system of record", async () => {
+    const { p } = testPlatform();
+    const parent = testAgent({
+      canHandoffTo: ["child.run"],
+      policy: async () => done("ok", { handoffs: [{ taskType: "child.run", input: {}, when: "now" }] }),
+      outcomeGuard: () => ["requisition not approved in ERP"],
+    });
+    p.register(parent, testAgent({ id: "test.child", handles: ["child.run"] }));
+    const t = p.orchestrator.submit({ type: "test.run", input: {}, originator: "u-requester" });
+    await p.orchestrator.drain();
+    expect(p.orchestrator.get(t.id).status).toBe("escalated");
+    expect(p.orchestrator.list({ parentId: t.id })).toHaveLength(0);
+    expect(p.escalations.list()[0]!.reason).toBe("guardrail_triggered");
   });
 
   it("retries invalid output, then escalates after max attempts", async () => {
