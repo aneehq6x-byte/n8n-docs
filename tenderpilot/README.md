@@ -16,10 +16,12 @@ bilingual dashboard — **Arabic (RTL) by default**, English secondary.
 | `packages/core` | Pure domain logic, no I/O: Zod domain schemas, RBAC matrix, `TenderConnector`s, Scout normalisation/dedupe, the **scoring engine**, fixtures. Client-safe subpaths: `@tenderpilot/core/domain`, `@tenderpilot/core/scoring`. |
 | `packages/config` | Lazily-validated env (`getServerEnv`) + secrets abstraction (env / Azure Key Vault). |
 | `packages/db` | Drizzle schema + migrations, Zod-validated row mappers, services (identity, company profile, scout ingest, scoring, opportunities), seed. |
-| `packages/jobs` | BullMQ queues, typed payloads, processors, worker factory, connector registry, `scout:run` CLI. |
+| `packages/jobs` | BullMQ queues, typed payloads, processors, worker factory, connector registry, Redis rate limiter, `scout:run` CLI. |
+| `packages/mail` | Mailer abstraction (console/JSONL outbox in dev, SMTP in production) + bilingual email templates. |
+| `packages/payments` | Moyasar gateway (hosted invoices) implementing the `PaymentGateway` interface. |
 | `apps/web` | Next.js 16 (App Router), next-intl, next-auth, tRPC, Tailwind 4 / shadcn-style UI. |
 | `apps/worker` | Worker process: Scout + scoring workers and the cron sweep. |
-| `e2e` | Browser acceptance gate (Playwright). |
+| `e2e` | Browser acceptance gate (Playwright, 44 checks) + `fake-moyasar.mjs` stand-in for payment tests. |
 
 ## Quick start
 
@@ -39,6 +41,17 @@ the mock Etimad feed, the scoring worker scores them, and the dashboard refreshe
 Without a worker: `pnpm scout:run` runs ingestion + scoring inline.
 Without any infrastructure: `pnpm --filter @tenderpilot/core demo [--lang ar]`.
 
+## What's in the product
+
+| Area | Screens | Notes |
+| --- | --- | --- |
+| Discovery | Dashboard, Opportunities, detail | Explainable scores, filters, sort, search, pipeline status. |
+| Data in | Run Scout, **Import tenders** (CSV) | Connectors + CSV with Arabic/English headers; both go through the same dedupe/upsert/score pipeline. |
+| Company profile | **Company profile** | Sectors, classifications, certifications, past projects. Saving re-scores everything and shows the impact. |
+| Team | **Team**, invitation page | Email invitations (hashed tokens, 7-day expiry, seat limits), role hierarchy, org switcher. |
+| Account | Forgot / reset password | Hashed single-use 1-hour tokens; no account enumeration; login rate limiting. |
+| Billing | **Plan & billing** | Starter 990 SAR / Professional 2,490 SAR per month (+15% VAT; annual = 10 months). Moyasar hosted checkout; activation only after server-side verification with the gateway. |
+
 ## Scripts
 
 | Command | |
@@ -48,7 +61,7 @@ Without any infrastructure: `pnpm --filter @tenderpilot/core demo [--lang ar]`.
 | `pnpm db:migrate` | Apply migrations + sync reference data (roles). |
 | `pnpm db:seed` | Idempotent demo user, org, bidding profile and certifications. |
 | `pnpm scout:run [--queue] [--org <id>]` | Run the Scout inline (default) or enqueue it. |
-| `cd e2e && npm i && BASE_URL=… node acceptance.mjs` | Browser acceptance gate (both locales). |
+| `cd e2e && npm i && BASE_URL=… node acceptance.mjs` | Browser acceptance gate (both locales). Set `MAIL_OUTBOX_FILE` (same as the web app's) to include the team/reset flows, and `FAKE_MOYASAR=1` with `node fake-moyasar.mjs` running to include checkout. |
 
 ## The scoring model
 
@@ -68,6 +81,12 @@ returns `{ key, labelAr, labelEn, weight, ratio, contribution, reasonAr, reasonE
 A failed gate sets `disqualified` plus a bilingual reason, but every other factor is still
 computed. Users can see exactly what it would take to qualify.
 
+## Billing setup (production)
+
+1. Create a Moyasar account and set `MOYASAR_SECRET_KEY` (via Key Vault in production).
+2. Set `APP_URL` to the public URL. Moyasar returns users to `/{locale}/billing/return` and calls `POST /api/billing/moyasar`.
+3. Activation never trusts the redirect or the callback body: the server re-fetches the invoice with the secret key and checks id, amount, currency and the checkout id in metadata before activating, exactly once.
+
 ## Security & tenancy
 
 - Every domain row carries `org_id`. All reads and writes go through services that take
@@ -75,3 +94,5 @@ computed. Users can see exactly what it would take to qualify.
 - tRPC: `protectedProcedure` → `orgProcedure` (tenant scope) → `requirePermission(…)` (RBAC).
 - Mutations write to the append-only `audit_log` in the same transaction.
 - Secrets are read only via `getServerEnv()`. `SECRETS_PROVIDER=azure-keyvault` hydrates them from Key Vault at boot.
+- Invitation and reset tokens are stored only as SHA-256 hashes. Post-login redirects accept same-site relative paths only.
+- Rate limits (Redis, fail-open): 5 logins per account and 30 per IP per 15 minutes; reset requests and sign-ups per IP/email; manual Scout runs per plan per day.
