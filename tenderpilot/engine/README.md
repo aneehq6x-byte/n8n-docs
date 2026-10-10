@@ -1,13 +1,33 @@
-# TenderPilot — Tender Analyzer
+# TenderPilot Engine
 
-أول وحدة إنتاجية في TenderPilot AI. ترفع كراسة الشروط (PDF) فتحصل على:
+محرّك TenderPilot AI، ويضم وحدتين:
+
+1. **Tender Analyzer:** يحلّل كراسة الشروط ويقيّم ملاءمتها للشركة.
+2. **Bid Writer:** يكتب مسودة العرض الفني بصيغة Word.
+
+## Tender Analyzer
+
+ترفع كراسة الشروط (PDF) فتحصل على:
 
 - **موجز منظّم:** المتطلبات (فنية، خبرات، شهادات، كوادر، مالية، إدارية، محتوى محلي)، الضمانات، معايير التقييم، المخاطر، مسببات الاستبعاد الشكلي، التواريخ، وأسئلة استيضاح.
 - **مصدر لكل بند:** رقم الصفحة والبند واقتباس حرفي، **يُتحقق منه آلياً** مقابل نص الملف.
 - **Opportunity Score (0–100)** قابل للتفسير عند إرفاق ملف الشركة، مع توصية Go / Review / No-Go.
 - **تقرير تنفيذي** بالعربية (Markdown) جاهز للمراجعة.
 
-هذه الوحدة تخدم "الإسفين الخدمي" في [دليل أول إيراد](../business/TenderPilot_Go_To_Revenue_Playbook.md): تقلّص زمن تحليل الكراسة من ساعات إلى دقائق، فترتفع هوامش الخدمة، ثم تصبح أساس منتج SaaS.
+## Bid Writer
+
+يأخذ التحليل المحفوظ وملف الشركة، وملاحظات فريق العطاءات إن وجدت، ويُخرج:
+
+- **مسودة العرض الفني (Word، من اليمين لليسار):** الملخص التنفيذي، فهم النطاق، المنهجية، خطة التنفيذ، فريق العمل، مصفوفة المخاطر، خطة الجودة، ومصفوفة الامتثال.
+- **مصفوفة امتثال يبنيها الكود:** لكل متطلب، الأقسام التي تستجيب له وحالته حسب تقييم الملاءمة. أي متطلب إلزامي لم يغطّه العرض يظهر بوضوح.
+- **لا اختلاق للحقائق:** حين يحتاج النص معلومة غير موجودة في ملف الشركة (رقم شهادة، اسم مشروع، مدة)، يكتب النموذج `[يُستكمل: ...]` بدل أن يخترعها. هذه العناصر مظللة بالأصفر في ملف Word، ومجمّعة في قائمة مراجعة داخلية منفصلة لا تصل للعميل.
+- **المتطلبات غير المستوفاة لا تُدّعى:** تُعالج بإجراء سد الفجوة من التقييم (شريك، مقاول باطن، توظيف) كالتزام يؤكده الفريق.
+
+ملف Word يُبنى بترتيب عناصر OOXML الذي يشترطه Microsoft Word، وهناك اختبار يتحقق من ذلك، لأن LibreOffice متساهل فيه ولا يكشف الخطأ.
+
+## علاقته بنموذج العمل
+
+هذا المحرّك يخدم "الإسفين الخدمي" في [دليل أول إيراد](../business/TenderPilot_Go_To_Revenue_Playbook.md): تقلّص زمن تحليل الكراسة من ساعات إلى دقائق، فترتفع هوامش الخدمة، ثم تصبح أساس منتج SaaS.
 
 ## خط المعالجة
 
@@ -18,6 +38,11 @@ PDF ─► load_pdf (حجم/صفحات + طبقة نصية)
     ─► assess   [LLM: claude-opus-5-5, effort=medium] → حالة كل متطلب مقابل ملف الشركة
     ─► compute_score [كود]                             → درجة + عوامل + فجوات حاجبة
     ─► render_markdown [كود]                           → التقرير التنفيذي
+
+AnalysisResult + CompanyProfile (+ ملاحظات الفريق)
+    ─► write    [LLM: claude-opus-5-5, effort=high]   → ProposalDraft
+    ─► assemble [كود]                                  → مصفوفة الامتثال + الفجوات + العناصر الناقصة
+    ─► build_docx / review_notes [كود]                 → العرض الفني (Word) + قائمة المراجعة الداخلية
 ```
 
 ### قرارات التصميم
@@ -39,18 +64,25 @@ PDF ─► load_pdf (حجم/صفحات + طبقة نصية)
 ## التشغيل
 
 ```bash
-cd tenderpilot/analyzer
+cd engine
 python -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env   # ضع ANTHROPIC_API_KEY أو استخدم `ant auth login`
 
 # سطر الأوامر
 tenderpilot-analyze tender.pdf --profile examples/company_profile.json -o report.md --json analysis.json
+tenderpilot-write analysis.json --profile examples/company_profile.json -o proposal.docx
+#   → proposal.docx + proposal.review.md (ما يجب استكماله) + proposal.json
 
 # واجهة العرض + HTTP API — افتح http://localhost:8000 لرفع الكراسة ورؤية التقرير
-uvicorn tenderpilot_analyzer.api:app --reload
+uvicorn tenderpilot.api:app --reload
 curl -F file=@tender.pdf -F company_profile="$(cat examples/company_profile.json)" \
      "http://localhost:8000/v1/analyze?format=markdown"
+
+# العرض الفني من تحليل محفوظ: format=json | docx | review
+curl -X POST "http://localhost:8000/v1/proposal?format=docx" -H "Content-Type: application/json" \
+     -d '{"analysis": '"$(cat analysis.json)"', "profile": '"$(cat examples/company_profile.json)"'}' \
+     -o proposal.docx
 ```
 
 واجهة العرض (`/`) مخصصة لاجتماعات البيع وللتسليم الداخلي: رفع الكراسة وملف الشركة، بطاقة الدرجة والعوامل، التقرير الكامل، وتنزيله (Markdown/JSON) أو طباعته PDF. تعمل بلا مكتبات خارجية من CDN لأن شبكات الجهات والشركات الكبيرة كثيراً ما تحجبها، وكل نص يُعرض بعد تهريبه (escaping). `POST /v1/report` يعيد توليد التقرير من تحليل محفوظ دون استدعاء النموذج.
@@ -58,8 +90,8 @@ curl -F file=@tender.pdf -F company_profile="$(cat examples/company_profile.json
 Docker:
 
 ```bash
-docker build -t tenderpilot-analyzer .
-docker run -p 8000:8000 -e ANTHROPIC_API_KEY tenderpilot-analyzer
+docker build -t tenderpilot .
+docker run -p 8000:8000 -e ANTHROPIC_API_KEY tenderpilot
 ```
 
 ## الاختبارات
@@ -72,7 +104,7 @@ pytest
 
 ## قبل الإنتاج
 
-1. **مجموعة تقييم (Eval):** 20–30 كراسة حقيقية مع موجز مُراجَع بشرياً، لقياس دقة الاستخراج قبل خفض الجهد أو تغيير النموذج.
-2. **معالجة غير متزامنة:** تحليل كراسة طويلة يستغرق دقائق؛ انقل `/v1/analyze` إلى طابور مهام (Azure Service Bus) مع حالة مهمة.
+1. **مجموعة تقييم (Eval):** 20–30 كراسة حقيقية مع موجز مُراجَع بشرياً، لقياس دقة الاستخراج قبل خفض الجهد أو تغيير النموذج. وللكاتب: مراجعة كاتب عروض محترف لأول 5 مسودات.
+2. **معالجة غير متزامنة:** تحليل كراسة طويلة يستغرق دقائق؛ انقل `/v1/analyze` و`/v1/proposal` إلى طابور مهام (Azure Service Bus) مع حالة مهمة.
 3. **مصادقة وعزل المستأجرين** على الواجهة، وتسجيل تدقيق لكل تحليل.
 4. **التحقق من دعم Foundry** للمخرجات المنظّمة في منطقتك قبل اعتماد `TP_PROVIDER=foundry`.

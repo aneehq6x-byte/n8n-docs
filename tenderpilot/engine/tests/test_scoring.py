@@ -1,5 +1,5 @@
-from tenderpilot_analyzer.models import VerificationReport
-from tenderpilot_analyzer.scoring import BLOCKED_CAP, compute_score
+from tenderpilot.models import VerificationReport
+from tenderpilot.scoring import BLOCKED_CAP, compute_score
 
 from conftest import fit
 

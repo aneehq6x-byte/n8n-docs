@@ -4,12 +4,12 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
-from tenderpilot_analyzer.api import create_app
-from tenderpilot_analyzer.config import Settings
-from tenderpilot_analyzer.llm import FALLBACK_BETA, LLMClient, RefusalError, TruncatedError
-from tenderpilot_analyzer.models import TenderExtraction
-from tenderpilot_analyzer.pdf import DocumentError
-from tenderpilot_analyzer.report import render_markdown
+from tenderpilot.api import create_app
+from tenderpilot.config import Settings
+from tenderpilot.llm import FALLBACK_BETA, LLMClient, RefusalError, TruncatedError
+from tenderpilot.models import TenderExtraction
+from tenderpilot.pdf import DocumentError
+from tenderpilot.report import render_markdown
 
 from conftest import fit
 

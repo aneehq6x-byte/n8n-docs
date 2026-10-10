@@ -60,6 +60,8 @@ class Settings:
                 "extract": _route("extract", "high", 64000),
                 # Matching a short requirement list against a company profile.
                 "assess": _route("assess", "medium", 32000),
+                # Long-form Arabic drafting across every requirement.
+                "write": _route("write", "high", 64000),
             },
         )
 

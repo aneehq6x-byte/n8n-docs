@@ -10,4 +10,4 @@ RUN pip install --no-cache-dir . && useradd --system --uid 10001 app
 USER app
 EXPOSE 8000
 HEALTHCHECK CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"
-CMD ["uvicorn", "tenderpilot_analyzer.api:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "tenderpilot.api:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -205,3 +205,80 @@ class AnalysisResult(BaseModel):
     fit: FitAssessment | None = None
     score: OpportunityScore | None = None
     usage: list[UsageRecord] = []
+
+
+# --------------------------------------------------------------------------
+# Bid writer — LLM output schema
+# --------------------------------------------------------------------------
+
+SectionKey = Literal[
+    "understanding", "methodology", "implementation", "staffing", "quality", "hse", "local_content"
+]
+
+
+class ProposalSection(BaseModel):
+    key: SectionKey
+    title: str
+    paragraphs: list[str] = Field(description="Formal Arabic paragraphs. Missing facts as [يُستكمل: ...].")
+    addresses: list[str] = Field(description="Requirement ids (R1, R2, ...) this section responds to.")
+
+
+class Phase(BaseModel):
+    name: str
+    duration_weeks: int | None = Field(description="Only if derivable from the tender; otherwise null.")
+    activities: list[str]
+    deliverables: list[str]
+
+
+class StaffRole(BaseModel):
+    role: str
+    count: int | None
+    responsibilities: str
+    qualifications: str = Field(description="As required by the tender; never invent named people.")
+    requirement_ids: list[str]
+
+
+class QualityControl(BaseModel):
+    area: str
+    control: str
+    frequency: str
+    kpi: str
+
+
+class ProposalDraft(BaseModel):
+    executive_summary: list[str] = Field(description="2-4 Arabic paragraphs.")
+    sections: list[ProposalSection]
+    implementation_plan: list[Phase]
+    staffing: list[StaffRole]
+    quality_plan: list[QualityControl]
+
+
+# --------------------------------------------------------------------------
+# Bid writer — computed output
+# --------------------------------------------------------------------------
+
+
+class ComplianceRow(BaseModel):
+    requirement_id: str
+    text: str
+    mandatory: bool
+    sections: list[str]
+    status: MatchStatus | None
+
+
+class Proposal(BaseModel):
+    tender_title: str
+    issuing_entity: str
+    tender_reference: str | None
+    company_name: str
+    draft: ProposalDraft
+    compliance: list[ComplianceRow]
+    placeholders: list[str] = Field(description="Facts the bid team must fill in before submission.")
+    uncovered_mandatory: list[str] = Field(description="Mandatory requirements no section addresses.")
+    usage: list[UsageRecord] = []
+
+
+class ProposalRequest(BaseModel):
+    analysis: AnalysisResult
+    profile: CompanyProfile
+    notes: str | None = Field(default=None, description="Bid team guidance: approach, partners, emphasis.")

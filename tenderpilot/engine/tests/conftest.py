@@ -7,10 +7,10 @@ from typing import Any
 import pytest
 from pypdf import PdfWriter
 
-from tenderpilot_analyzer.analyzer import TenderAnalyzer
-from tenderpilot_analyzer.config import Settings
-from tenderpilot_analyzer.llm import LLMResult
-from tenderpilot_analyzer.models import (
+from tenderpilot.analyzer import TenderAnalyzer
+from tenderpilot.config import Settings
+from tenderpilot.llm import LLMResult
+from tenderpilot.models import (
     CompanyProfile,
     FitAssessment,
     Guarantee,

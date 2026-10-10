@@ -1,6 +1,6 @@
 import unicodedata
 
-from tenderpilot_analyzer.verify import check_quote, normalize
+from tenderpilot.verify import check_quote, normalize
 
 PAGE = "يَجِبُ على المتنافس تقديم شهادة الأيزو 9001 سارية المفعول، وإلا يُستبعد العرض."
 
