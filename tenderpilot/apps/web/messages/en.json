@@ -17,12 +17,14 @@
     "themeLight": "Light",
     "themeDark": "Dark",
     "themeSystem": "System",
-    "menu": "Menu"
+    "menu": "Menu",
+    "organization": "Organization"
   },
   "nav": {
     "dashboard": "Dashboard",
     "opportunities": "Opportunities",
-    "profile": "Company profile"
+    "profile": "Company profile",
+    "team": "Team"
   },
   "auth": {
     "signInTitle": "Sign in to TenderPilot",
@@ -41,7 +43,21 @@
     "emailTaken": "An account with this email already exists.",
     "invalidInput": "Please check the highlighted fields.",
     "genericError": "Something went wrong. Please try again.",
-    "demoHint": "Demo: demo@tenderpilot.sa / Demo@12345"
+    "demoHint": "Demo: demo@tenderpilot.sa / Demo@12345",
+    "forgotLink": "Forgot your password?",
+    "rateLimited": "Too many attempts. Please wait a few minutes and try again.",
+    "forgotTitle": "Reset your password",
+    "forgotSubtitle": "Enter your work email and we'll send you a reset link.",
+    "sendLink": "Send reset link",
+    "forgotSent": "If an account exists for that email, a reset link is on its way. It expires in one hour.",
+    "resetTitle": "Choose a new password",
+    "resetSubtitle": "Use at least 8 characters.",
+    "newPassword": "New password",
+    "resetSubmit": "Update password",
+    "resetDone": "Your password was updated. You can sign in now.",
+    "resetInvalid": "This reset link is invalid or has expired.",
+    "requestNew": "Request a new link",
+    "backToSignIn": "Back to sign in"
   },
   "onboarding": {
     "title": "Set up your company",
@@ -236,6 +252,12 @@
       "citc_license": "CITC License",
       "sfda_license": "SFDA License",
       "local_content_baladi": "Local Content (Baladi)"
+    },
+    "role": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "analyst": "Tender analyst",
+      "viewer": "Viewer"
     }
   },
   "profile": {
@@ -309,5 +331,62 @@
       "average": "Average score {before} → {after}",
       "noChange": "No scores changed."
     }
+  },
+  "team": {
+    "title": "Team",
+    "subtitle": "Invite colleagues and control what each of them can do.",
+    "membersTitle": "Members",
+    "seats": "{used} of {limit} seats used",
+    "inviteTitle": "Invite a teammate",
+    "inviteHint": "They'll get a bilingual email with a link that expires in 7 days.",
+    "email": "Work email",
+    "role": "Role",
+    "sendInvite": "Send invitation",
+    "invited": "Invitation sent to {email}",
+    "pendingTitle": "Pending invitations",
+    "pendingEmpty": "No pending invitations.",
+    "expires": "Expires {date}",
+    "revoke": "Revoke",
+    "you": "You",
+    "joined": "Joined {date}",
+    "remove": "Remove",
+    "confirmRemove": "Confirm removal",
+    "leave": "Leave organization",
+    "readOnly": "Only owners and admins can invite or manage members.",
+    "columns": {
+      "member": "Member",
+      "role": "Role",
+      "joined": "Joined",
+      "actions": "Actions"
+    },
+    "roleHint": {
+      "owner": "Full control, including billing.",
+      "admin": "Manages the profile, team and pipeline.",
+      "analyst": "Works the pipeline and runs the Scout.",
+      "viewer": "Read-only access to opportunities."
+    },
+    "errors": {
+      "FORBIDDEN_ROLE": "You can't assign or manage that role.",
+      "ALREADY_MEMBER": "That person is already a member.",
+      "SEAT_LIMIT": "All seats are in use. Upgrade your plan or remove a member first.",
+      "NOT_FOUND": "That member or invitation no longer exists.",
+      "OWNER_PROTECTED": "The owner can't be changed or removed here.",
+      "invalidEmail": "Enter a valid email address.",
+      "generic": "Something went wrong. Please try again."
+    }
+  },
+  "invite": {
+    "title": "Join {org}",
+    "subtitle": "{email} has been invited to join as {role}.",
+    "signInToAccept": "Sign in to accept",
+    "signUpToAccept": "Create an account to accept",
+    "accept": "Accept and join",
+    "mismatch": "You're signed in as {current}, but this invitation is for {email}.",
+    "switchAccount": "Sign in with a different account",
+    "expired": "This invitation has expired. Ask your administrator to send a new one.",
+    "used": "This invitation has already been used.",
+    "revoked": "This invitation was revoked.",
+    "notFound": "This invitation link is invalid.",
+    "error": "We couldn't accept this invitation. Please try again."
   }
 }

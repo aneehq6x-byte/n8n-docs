@@ -3,15 +3,20 @@ import { Suspense } from "react";
 import { Link } from "@/i18n/navigation";
 import { Logo } from "./logo";
 import { NavLinks } from "./nav-links";
+import { OrgSwitcher } from "./org-switcher";
 import { LocaleSwitcher, SignOutButton, ThemeToggle } from "./preferences";
 
 export function AppShell({
   orgName,
   userName,
+  orgs,
+  activeOrgId,
   children,
 }: {
   orgName: string;
   userName: string;
+  orgs: { id: string; name: string }[];
+  activeOrgId: string;
   children: ReactNode;
 }) {
   return (
@@ -21,8 +26,8 @@ export function AppShell({
           <Logo />
         </Link>
         <NavLinks />
-        <div className="mt-auto rounded-lg bg-muted/60 p-3 text-xs">
-          <p className="truncate font-medium">{orgName}</p>
+        <div className="mt-auto flex flex-col gap-2 rounded-lg bg-muted/60 p-3 text-xs">
+          {orgs.length > 1 ? <OrgSwitcher orgs={orgs} activeOrgId={activeOrgId} /> : <p className="truncate font-medium">{orgName}</p>}
           <p className="truncate text-muted-foreground">{userName}</p>
         </div>
       </aside>

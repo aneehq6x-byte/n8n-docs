@@ -140,6 +140,92 @@ await page.getByRole("button", { name: "حفظ وإعادة التقييم" }).c
 await page.getByText(/تم الحفظ/).waitFor({ timeout: 15_000 });
 check("profile restored", (await certSelects.count()) === before, `certs=${await certSelects.count()}`);
 
+// 6c. Team: invite → email → sign up via link → accept → scoped permissions → reset password → rate limit
+if (process.env.MAIL_OUTBOX_FILE) {
+  const { readFileSync } = await import("node:fs");
+  const lastMail = (to, tag) =>
+    readFileSync(process.env.MAIL_OUTBOX_FILE, "utf8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l))
+      .filter((m) => m.to === to && m.tag === tag)
+      .at(-1);
+  const inviteeEmail = `analyst-${Date.now()}@tenderpilot.test`;
+
+  await page.goto(`${BASE}/ar/team`);
+  await page.waitForLoadState("networkidle");
+  await page.fill("#invite-email", inviteeEmail);
+  await page.locator("#invite-role").selectOption("analyst");
+  await page.getByRole("button", { name: "إرسال الدعوة" }).click();
+  await page.getByText(`تم إرسال الدعوة إلى ${inviteeEmail}`).waitFor({ timeout: 10_000 });
+  const invite = lastMail(inviteeEmail, "invitation");
+  check("invitation email sent (bilingual)", Boolean(invite?.actionUrl) && /دعوة/.test(invite.subject) && /Join/.test(invite.subject));
+  await page.screenshot({ path: OUT + "13-ar-team.png", fullPage: true });
+
+  const guest = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const gp = await guest.newPage();
+  gp.on("pageerror", (e) => consoleErrors.push(`guest: ${e.message}`));
+  await gp.goto(invite.actionUrl.replace(/^https?:\/\/[^/]+/, BASE));
+  await gp.getByRole("link", { name: "أنشئ حسابًا للقبول" }).click();
+  await gp.waitForURL(/sign-up\?next=/);
+  await gp.fill("#name", "خالد الحربي");
+  await gp.fill("#email", inviteeEmail);
+  await gp.fill("#password", "Analyst@12345");
+  await gp.click("button[type=submit]");
+  await gp.waitForURL(/\/ar\/invite\//);
+  await gp.getByRole("button", { name: "قبول والانضمام" }).click();
+  await gp.waitForURL(/\/ar\/dashboard/);
+  check("invitee joined the inviting org", await gp.getByText("شركة البنيان المتقدمة للمقاولات").first().isVisible());
+  await gp.goto(`${BASE}/ar/profile`);
+  check("analyst sees profile read-only", await gp.getByText("يمكن للمالك والمدير فقط تعديل ملف الشركة.").isVisible());
+  await guest.close();
+
+  // forgot → emailed link → new password → sign in with it
+  const anon2 = await browser.newContext();
+  const rp = await anon2.newPage();
+  await rp.goto(`${BASE}/ar/forgot-password`);
+  await rp.fill("#email", inviteeEmail);
+  await rp.getByRole("button", { name: "إرسال الرابط" }).click();
+  await rp.getByText(/إذا كان هناك حساب/).waitFor();
+  const reset = lastMail(inviteeEmail, "password_reset");
+  check("reset email sent", Boolean(reset?.actionUrl));
+  await rp.goto(reset.actionUrl.replace(/^https?:\/\/[^/]+/, BASE));
+  await rp.fill("#password", "Changed@12345");
+  await rp.getByRole("button", { name: "تحديث كلمة المرور" }).click();
+  await rp.getByText("تم تحديث كلمة المرور").waitFor();
+  await rp.goto(reset.actionUrl.replace(/^https?:\/\/[^/]+/, BASE));
+  check("reset link is single-use", await rp.getByText("رابط إعادة التعيين غير صالح").isVisible());
+  await rp.goto(`${BASE}/ar/sign-in`);
+  await rp.fill("#email", inviteeEmail);
+  await rp.fill("#password", "Changed@12345");
+  await rp.click("button[type=submit]");
+  await rp.waitForURL(/\/ar\/dashboard/);
+  check("sign in with the new password", true);
+
+  // brute force against one account is throttled
+  const bp = await (await browser.newContext()).newPage();
+  const victim = `nobody-${Date.now()}@tenderpilot.test`;
+  let throttled = false;
+  for (let i = 0; i < 7 && !throttled; i++) {
+    await bp.goto(`${BASE}/ar/sign-in`);
+    await bp.fill("#email", victim);
+    await bp.fill("#password", "wrong-password");
+    await bp.click("button[type=submit]");
+    await bp.locator('form p[role="alert"]').waitFor();
+    throttled = await bp.getByText("محاولات كثيرة").isVisible();
+  }
+  check("login rate limiting kicks in", throttled);
+
+  // owner removes the analyst again (frees the seat for the next run)
+  await page.goto(`${BASE}/ar/team`);
+  await page.waitForLoadState("networkidle");
+  const row = page.locator("li", { hasText: inviteeEmail });
+  await row.getByRole("button", { name: "إزالة" }).click();
+  await row.getByRole("button", { name: "تأكيد الإزالة" }).click();
+  await row.waitFor({ state: "detached", timeout: 10_000 });
+  check("owner removed the member", true);
+}
+
 // 7. Dark mode + mobile RTL
 const dark = await browser.newContext({ viewport: { width: 1440, height: 1000 }, colorScheme: "dark", storageState: await ctx.storageState() });
 const dp = await dark.newPage();

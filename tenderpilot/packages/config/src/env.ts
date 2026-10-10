@@ -21,6 +21,13 @@ const serverEnvSchema = z.object({
   SCOUT_CRON: z.string().default("0 */6 * * *"),
   /** How far back the Scout looks on each sweep (ingestion is idempotent). */
   SCOUT_LOOKBACK_DAYS: z.coerce.number().int().positive().default(90),
+  /** Public base URL used in emailed links (invitations, password resets). */
+  APP_URL: z.url().optional(),
+  /** console = log + optional JSONL outbox (dev/tests); smtp = real delivery. */
+  MAIL_TRANSPORT: z.enum(["console", "smtp"]).default("console"),
+  SMTP_URL: z.string().optional(),
+  MAIL_FROM: z.string().default("TenderPilot <no-reply@tenderpilot.sa>"),
+  MAIL_OUTBOX_FILE: z.string().optional(),
   /** Where secrets come from: plain env, or Azure Key Vault (hydrated at boot). */
   SECRETS_PROVIDER: z.enum(["env", "azure-keyvault"]).default("env"),
   AZURE_KEYVAULT_URL: z.url().optional(),
@@ -41,6 +48,12 @@ export function getServerEnv(): ServerEnv {
   }
   cached = parsed.data;
   return cached;
+}
+
+/** Base URL for links in emails. */
+export function appUrl(): string {
+  const env = getServerEnv();
+  return (env.APP_URL ?? env.NEXTAUTH_URL ?? "http://localhost:3000").replace(/\/$/, "");
 }
 
 /** Test/dev helper: forget the cached env so the next read re-validates. */

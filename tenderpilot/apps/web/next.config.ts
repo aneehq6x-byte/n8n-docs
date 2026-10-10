@@ -4,9 +4,9 @@ import createNextIntlPlugin from "next-intl/plugin";
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@tenderpilot/core", "@tenderpilot/db", "@tenderpilot/config", "@tenderpilot/jobs"],
+  transpilePackages: ["@tenderpilot/core", "@tenderpilot/db", "@tenderpilot/config", "@tenderpilot/jobs", "@tenderpilot/mail"],
   // BullMQ loads its Lua scripts from disk at runtime — it must not be bundled.
-  serverExternalPackages: ["bullmq", "ioredis"],
+  serverExternalPackages: ["bullmq", "ioredis", "nodemailer"],
   poweredByHeader: false,
   typedRoutes: false,
   async headers() {

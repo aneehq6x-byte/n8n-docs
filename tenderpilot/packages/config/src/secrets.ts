@@ -57,6 +57,7 @@ export const MANAGED_SECRET_KEYS = [
   "NEXTAUTH_SECRET",
   "S3_ACCESS_KEY",
   "S3_SECRET_KEY",
+  "SMTP_URL",
 ] as const;
 
 /** Copy secrets from the provider into process.env (existing values win). */

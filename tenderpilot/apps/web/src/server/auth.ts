@@ -4,6 +4,8 @@ import { getServerSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { z } from "zod";
 import { getDb, verifyCredentials } from "@tenderpilot/db";
+import { resetRateLimit } from "@tenderpilot/jobs";
+import { LIMITS, clientIpFrom, withinLimits } from "./security";
 
 const credentialsSchema = z.object({
   email: z.email(),
@@ -24,11 +26,22 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(raw) {
+      async authorize(raw, req) {
         const parsed = credentialsSchema.safeParse(raw);
         if (!parsed.success) return null;
-        const user = await verifyCredentials(getDb(), parsed.data.email, parsed.data.password);
-        return user ? { id: user.id, email: user.email, name: user.name } : null;
+        const email = parsed.data.email.trim().toLowerCase();
+        const forwarded: unknown = req.headers?.["x-forwarded-for"];
+        const ip = clientIpFrom(forwarded);
+        const allowed = await withinLimits(
+          { key: `login:email:${email}`, ...LIMITS.loginPerEmail },
+          { key: `login:ip:${ip}`, ...LIMITS.loginPerIp },
+        );
+        // Surfaces to the client as `error: "RATE_LIMITED"`.
+        if (!allowed) throw new Error("RATE_LIMITED");
+        const user = await verifyCredentials(getDb(), email, parsed.data.password);
+        if (!user) return null;
+        await resetRateLimit(`login:email:${email}`);
+        return { id: user.id, email: user.email, name: user.name };
       },
     }),
   ],

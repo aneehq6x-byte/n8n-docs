@@ -6,9 +6,10 @@ import { useTranslations } from "next-intl";
 import { useState, useTransition, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input, Label } from "@/components/ui/form";
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 
-export function SignInForm() {
+/** `next` is validated on the server (safeNextPath) before it reaches this component. */
+export function SignInForm({ next }: { next: string | null }) {
   const t = useTranslations("auth");
   const router = useRouter();
   const [error, setError] = useState<string | undefined>();
@@ -25,10 +26,10 @@ export function SignInForm() {
         redirect: false,
       });
       if (!res || res.error) {
-        setError(t("invalidCredentials"));
+        setError(res?.error === "RATE_LIMITED" ? t("rateLimited") : t("invalidCredentials"));
         return;
       }
-      router.replace("/dashboard");
+      router.replace(next ?? "/dashboard");
       router.refresh();
     });
   }
@@ -41,7 +42,12 @@ export function SignInForm() {
         <Input id="email" name="email" type="email" autoComplete="email" required dir="ltr" className="text-start" />
       </div>
       <div className="flex flex-col gap-2">
-        <Label htmlFor="password">{t("password")}</Label>
+        <div className="flex items-baseline justify-between gap-2">
+          <Label htmlFor="password">{t("password")}</Label>
+          <Link href="/forgot-password" className="text-xs text-primary hover:underline">
+            {t("forgotLink")}
+          </Link>
+        </div>
         <Input id="password" name="password" type="password" autoComplete="current-password" required dir="ltr" />
       </div>
       <FieldError message={error} />

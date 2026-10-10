@@ -9,7 +9,8 @@ import { FieldError, Input, Label } from "@/components/ui/form";
 import { useRouter } from "@/i18n/navigation";
 import { signUpAction, type SignUpResult } from "./actions";
 
-export function SignUpForm() {
+/** `next` (validated server-side) lets invitees land on their invitation instead of onboarding. */
+export function SignUpForm({ next }: { next: string | null }) {
   const t = useTranslations("auth");
   const locale = useLocale();
   const router = useRouter();
@@ -27,7 +28,7 @@ export function SignUpForm() {
       setResult(res);
       if (!res.ok) return;
       const login = await signIn("credentials", { email, password, redirect: false });
-      router.replace(login?.ok ? "/onboarding" : "/sign-in");
+      router.replace(login?.ok ? (next ?? "/onboarding") : "/sign-in");
       router.refresh();
     });
   }

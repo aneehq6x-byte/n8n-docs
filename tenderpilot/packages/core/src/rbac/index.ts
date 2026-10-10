@@ -14,6 +14,8 @@ export const PERMISSIONS = [
   "opportunity:update",
   "scout:run",
   "profile:manage",
+  "team:manage",
+  "billing:manage",
   "org:manage",
   "audit:read",
 ] as const;
@@ -22,7 +24,7 @@ export type Permission = z.infer<typeof permissionSchema>;
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   owner: PERMISSIONS,
-  admin: ["opportunity:read", "opportunity:update", "scout:run", "profile:manage", "audit:read"],
+  admin: ["opportunity:read", "opportunity:update", "scout:run", "profile:manage", "team:manage", "audit:read"],
   analyst: ["opportunity:read", "opportunity:update", "scout:run"],
   viewer: ["opportunity:read"],
 };
@@ -36,4 +38,21 @@ export const ROLE_LABELS: Record<Role, { ar: string; en: string }> = {
 
 export function can(role: Role, permission: Permission): boolean {
   return ROLE_PERMISSIONS[role].includes(permission);
+}
+
+const RANK: Record<Role, number> = { owner: 3, admin: 2, analyst: 1, viewer: 0 };
+
+/**
+ * Who may grant / change / remove which role. Ownership is never assignable
+ * through team management (transfer is a separate, deliberate flow). Owners may
+ * manage admins; everyone else may only manage roles strictly below their own.
+ */
+export function canManageRole(actor: Role, target: Role): boolean {
+  if (target === "owner" || !can(actor, "team:manage")) return false;
+  return actor === "owner" ? true : RANK[actor] > RANK[target];
+}
+
+/** Roles the actor may hand out, strongest first. */
+export function assignableRoles(actor: Role): Role[] {
+  return ROLES.filter((r) => canManageRole(actor, r));
 }

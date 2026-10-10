@@ -9,7 +9,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./domain": "./src/domain/index.ts",
-    "./scoring": "./src/scoring/index.ts"
+    "./scoring": "./src/scoring/index.ts",
+    "./rbac": "./src/rbac/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
