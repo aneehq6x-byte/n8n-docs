@@ -1,4 +1,4 @@
-import type { ScreeningRecord, Budget, CatalogItem, EmailMessage, GoodsReceipt, Invoice, PurchaseOrder, Requisition, SanctionsEntry, Supplier } from "../types.ts";
+import type { Payment, ScreeningRecord, Budget, CatalogItem, EmailMessage, GoodsReceipt, Invoice, PurchaseOrder, Requisition, SanctionsEntry, Supplier } from "../types.ts";
 
 /**
  * بيانات وهمية بالكامل للتطوير والاختبار. أي تشابه مع أسماء حقيقية غير مقصود.
@@ -16,6 +16,8 @@ export interface Fixtures {
   inbox: Record<string, EmailMessage[]>;
   sanctions: SanctionsEntry[];
   screenings: ScreeningRecord[];
+  payments: Payment[];
+  outbox: Array<{ id: string; from: string; to: string[]; subject: string; body: string }>;
 }
 
 const verified = "2028-11-15T00:00:00.000Z";
@@ -91,4 +93,6 @@ const FIXTURES: Fixtures = {
     { id: "FX-UN-0207", list: "UN_SC", name: "Zarqa Trading Establishment", aliases: ["مؤسسة الزرقاء للتجارة"], country: null, type: "entity" },
   ],
   screenings: [],
+  payments: [],
+  outbox: [],
 };

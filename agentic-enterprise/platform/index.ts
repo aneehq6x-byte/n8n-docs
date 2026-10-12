@@ -46,6 +46,8 @@ export interface CreatePlatformOptions {
   runtime?: AgentRuntime;
   /** لا يُقرأ ملف علَم الإيقاف من القرص (للاختبارات المعزولة). */
   isolated?: boolean;
+  /** فتح المنصة رغم تلف audit log للتشخيص فقط. يُفعّل الإيقاف الطارئ في الذاكرة، فلا يعمل أي وكيل. */
+  forensic?: boolean;
 }
 
 export function createPlatform(opts: CreatePlatformOptions = {}): Platform {
@@ -53,13 +55,15 @@ export function createPlatform(opts: CreatePlatformOptions = {}): Platform {
   const clock = opts.clock ?? systemClock;
   const db = openDatabase(config.DATABASE_PATH);
   const audit = new AuditLog(db, clock);
-  audit.assertIntact();
+  // الإقلاع يرفض سجلًا تالفًا (fail-closed). الوضع الجنائي يسمح بالفتح للتشخيص فقط، مع إيقاف طارئ إلزامي.
+  if (!opts.forensic) audit.assertIntact();
   const directory = new HumanDirectory(opts.humans ?? DEFAULT_HUMANS);
   const gate = new ApprovalGate(db, audit, directory, defaultPolicy(config.APPROVAL_TTL_HOURS, config.DUAL_APPROVAL_THRESHOLD_USD), clock);
   const notifier = new InMemoryNotifier();
   const escalations = new EscalationService(db, audit, clock, notifier);
   const memory = new MemoryStore(db, audit, clock);
   const killSwitch = new KillSwitch({ envFlag: config.KILL_SWITCH, ...(opts.isolated ? {} : { flagFile: config.KILL_SWITCH_FILE }) });
+  if (opts.forensic && !audit.verify().valid) killSwitch.engage("forensic mode: audit chain broken", false);
   const connectors = createMockConnectors(gate, clock, opts.fixtures);
   const runtime =
     opts.runtime ??

@@ -1,0 +1,97 @@
+#!/usr/bin/env node
+/**
+ * اختبار الطفرات (mutation testing) لطبقات الحماية: يعطّل كل حماية على حدة في الكود،
+ * ثم يتأكد أن اختبارًا واحدًا على الأقل (unit أو eval) يفشل. الحماية التي "تنجو" طفرتها
+ * لا يغطيها أي اختبار فعلي.
+ *
+ *   npm run mutation              كل الطفرات
+ *   npm run mutation -- approval  الطفرات التي يحتوي اسمها على "approval"
+ *
+ * كل ملف يُستعاد بعد كل طفرة، حتى عند المقاطعة (SIGINT).
+ */
+import { execSync } from "node:child_process";
+import { copyFileSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+
+const A = "agents/";
+/** [الاسم، الملف، النص الأصلي، النص البديل، equivalent؟] */
+const MUTATIONS = [
+  // المنصة
+  ["platform: originator SoD", "platform/approval/approval-gate.ts", "if (humanId === req.originator) throw", "if (false) throw"],
+  ["platform: same approver twice", "platform/approval/approval-gate.ts", "if (req.decisions.some((d) => d.humanId === humanId)) throw", "if (false) throw"],
+  ["platform: dual approval threshold", "platform/approval/approval-gate.ts", "(amountUsd !== null && amountUsd > this.policy.dualApprovalThresholdUsd)", "false"],
+  ["platform: approval TTL", "platform/approval/approval-gate.ts", "return this.clock.now().getTime() > new Date(req.expiresAt).getTime();", "return false;"],
+  ["platform: grant nonce", "platform/approval/approval-gate.ts", 'if (row.grant_nonce !== grant.nonce) fail("Grant nonce mismatch");', ""],
+  ["platform: grant amount cap", "platform/approval/approval-gate.ts", "money.amount > req.money!.amount + 1e-9", "false"],
+  ["platform: audit hash verify", "platform/audit/audit-log.ts", 'if (sha256(canonicalJson(body)) !== hash) return broken(rows.length, e.seq, "content hash mismatch");', ""],
+  ["platform: executor kill switch", "platform/tools/executor.ts", "if (killSwitch.isEngaged()) {\n      log(\"denied\", { code: \"KILL_SWITCH_ACTIVE\" });\n      return { status: \"denied\", code: \"KILL_SWITCH_ACTIVE\", reason: \"Emergency stop is engaged. Stop all work.\" };", "if (false) {\n      log(\"denied\", { code: \"KILL_SWITCH_ACTIVE\" });\n      return { status: \"denied\", code: \"KILL_SWITCH_ACTIVE\", reason: \"Emergency stop is engaged. Stop all work.\" };"],
+  ["platform: tool allowlist", "platform/tools/executor.ts", "const tool = this.toolsFor(agent).find((t) => t.name === name);", "const tool = this.toolsFor(agent).find((t) => t.name === name) ?? this.toolsFor(agent)[0];"],
+  ["platform: strict input schema", "platform/tools/executor.ts", "const parsed = tool.input.strict().safeParse(rawInput);", "const parsed = tool.input.safeParse(rawInput);"],
+  ["platform: approval tools gated", "platform/tools/executor.ts", 'if (tool.permission === "approval") {', 'if (tool.permission === "approval" && false) {'],
+  ["platform: payload tamper check", "platform/tools/executor.ts", "if (hashObject(approval.payload) !== approval.payloadHash) {", "if (false) {"],
+  ["platform: max tool calls", "platform/tools/executor.ts", "if (count > agent.maxToolCalls) {", "if (false) {"],
+  ["platform: status from facts", "platform/orchestrator/orchestrator.ts", 'else if (outcome.status === "needs_approval") {', 'else if (false) {'],
+  ["platform: handoff allowlist", "platform/orchestrator/orchestrator.ts", "if (agent.canHandoffTo.includes(h.taskType) && this.routes.has(h.taskType)) return true;", "if (this.routes.has(h.taskType)) return true;"],
+  ["platform: injection guard", "platform/security/guardrails.ts", "if (findings.length === 0) return allow;", "return allow;"],
+  ["platform: PII redaction", "platform/memory/memory-store.ts", "const { value, count } = allowPii ? { value: record.value, count: 0 } : redactPii(record.value);", "const { value, count } = { value: record.value, count: 0 };"],
+  ["platform: connector IBAN check", "platform/connectors/mock/mock-connectors.ts", 'if (supplier.bankAccount.iban !== instr.iban) throw new PlatformError("CONNECTOR_ERROR", "IBAN does not match supplier master data");', ""],
+  // المشتريات
+  ["procurement: decision guard", A + "procurement/requisition-intake/guardrails/decision-matches-assessment.ts", "check: (call, ctx) => {", "check: (call, ctx) => { if (1) return allow;"],
+  ["procurement: split detection", A + "procurement/shared/assessment.ts", "if (prior.length > 0 && g.totalUsd", "if (false && g.totalUsd"],
+  ["procurement: budget check", A + "procurement/shared/assessment.ts", "else if (totalUsd > budget.availableUsd)", "else if (false)"],
+  ["procurement: PO preconditions", A + "procurement/po-issuer/guardrails/po-preconditions.ts", "check: (call, ctx) => {", "check: (call, ctx) => { if (1) return allow;"],
+  ["procurement: task scope", A + "procurement/shared/guardrails/same-task-scope.ts", "check: (call, ctx) => {", "check: (call, ctx) => { if (1) return allow;"],
+  ["procurement: intake outcome guard", A + "procurement/requisition-intake/agent.ts", "const v: string[] = [];\n    for (const h", "const v: string[] = []; return v;\n    for (const h"],
+  ["procurement: duplicate PO", A + "procurement/shared/assessment.ts", "if (existing.length)", "if (false)"],
+  // المالية
+  ["finance: invoice decision guard", A + "finance/invoice-processor/guardrails/invoice-decision-matches-assessment.ts", "check: (call, ctx) => {", "check: (call, ctx) => { if (1) return allow;"],
+  ["finance: BEC detection", A + "finance/shared/invoice-assessment.ts", "if (supplier && inv.remitToIban && inv.remitToIban", "if (false && inv.remitToIban"],
+  ["finance: qty vs receipt", A + "finance/shared/invoice-assessment.ts", "if (qtyPreviouslyInvoiced + l.quantity > qtyReceived)", "if (false)"],
+  ["finance: duplicate invoice", A + "finance/shared/invoice-assessment.ts", "if (dup.length)", "if (false)"],
+  ["finance: invoice outcome guard", A + "finance/invoice-processor/agent.ts", "const v: string[] = [];\n    for (const h", "const v: string[] = []; return v;\n    for (const h"],
+  ["finance: payment preconditions", A + "finance/payment-scheduler/guardrails/payment-preconditions.ts", "check: (call, ctx) => {", "check: (call, ctx) => { if (1) return allow;"],
+  ["finance: already paid", A + "finance/shared/payment-assessment.ts", 'if (inv.status === "paid" ||', "if (false &&"],
+  ["finance: screening required", A + "finance/shared/payment-assessment.ts", "else if (!scr.ok) f.push", "else if (false) f.push"],
+  ["finance: screening hit", A + "finance/shared/payment-assessment.ts", 'if (scr.code === "SCREENING_HIT")', "if (false)"],
+  ["finance: pay invoice IBAN (equivalent: masked by 3 layers)", A + "finance/payment-scheduler/tools/schedule-payment.ts", "iban: s.bankAccount.iban, amount", "iban: inv.remitToIban ?? s.bankAccount.iban, amount", true],
+  // الامتثال
+  ["compliance: no clear over threshold", A + "compliance/sanctions-screener/guardrails/no-clear-over-threshold.ts", "check: (call, ctx) => {", "check: (call, ctx) => { if (1) return allow;"],
+  ["compliance: party scope", A + "compliance/sanctions-screener/guardrails/same-task-party.ts", "check: (call, ctx) =>\n", "check: (call, ctx) => allow ??\n"],
+  ["compliance: screener outcome guard", A + "compliance/sanctions-screener/agent.ts", "if (outcome.handoffs.length === 0) return v;", "return v;"],
+  ["compliance: skeleton matching", A + "compliance/shared/name-matching.ts", "jaroWinkler(sx, sy) * 0.97", "0"],
+  ["compliance: name variants", A + "compliance/shared/name-matching.ts", '[/^(mohammed|mohammad|mohamed|mohamad|muhammed|mohamud|mohd|muhamad)$/, "muhammad"],', ""],
+  ["compliance: human-only clearance role", A + "compliance/human-actions.ts", 'if (!human.roles.includes("compliance_officer")) {', "if (false) {"],
+];
+
+const filter = process.argv[2];
+const env = { ...process.env, NODE_OPTIONS: "--disable-warning=ExperimentalWarning" };
+let active = null;
+const restore = () => active && (renameSync(`${active}.mutbak`, active), (active = null));
+process.on("SIGINT", () => (restore(), process.exit(130)));
+
+let caught = 0, missed = 0, equivalent = 0;
+for (const [name, file, from, to, isEquivalent] of MUTATIONS.filter((m) => !filter || m[0].includes(filter))) {
+  const src = readFileSync(file, "utf8");
+  if (!src.includes(from)) {
+    console.log(`STALE   ${name}: pattern not found in ${file}`);
+    missed++;
+    continue;
+  }
+  copyFileSync(file, `${file}.mutbak`);
+  active = file;
+  writeFileSync(file, src.replace(from, to));
+  let failing = "";
+  try {
+    execSync("npx vitest run --reporter=dot && npx tsx platform/eval/cli.ts", { env, stdio: "pipe" });
+  } catch (e) {
+    const out = `${e.stdout ?? ""}`;
+    failing = [...out.matchAll(/FAIL\s+\S+\s+(\S+)/g)].map((m) => m[1]).slice(0, 3).join(", ") || "unit tests";
+  } finally {
+    restore();
+  }
+  if (failing) caught++;
+  else if (isEquivalent) equivalent++;
+  else missed++;
+  console.log(`${failing ? "CAUGHT " : isEquivalent ? "EQUIV  " : "MISSED "} ${name.padEnd(58)} ${failing}`);
+}
+console.log(`\nMutations: ${caught} caught, ${missed} missed, ${equivalent} equivalent (unreachable by design)`);
+process.exit(missed > 0 ? 1 : 0);

@@ -15,5 +15,5 @@
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true
   },
-  "include": ["platform", "agents", "tests", "scenarios", "vitest.config.ts"]
+  "include": ["platform", "agents", "tests", "scenarios", "ops", "scripts", "vitest.config.ts"]
 }

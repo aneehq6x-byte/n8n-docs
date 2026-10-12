@@ -17,6 +17,8 @@ export interface EvalScenario {
   id: string;
   title: string;
   category: EvalCategory;
+  /** اسم يظهر في التقرير بدل معرّف الوكيل الأول، للسيناريوهات متعددة الوكلاء. */
+  owner?: string;
   /** الوكيل الأول هو الوكيل المُختبَر. الباقون يُسجَّلون لاستقبال الإحالات. */
   agents: AgentDefinition[];
   task: { type: string; input: JsonObject; originator: string };

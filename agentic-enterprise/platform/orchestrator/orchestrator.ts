@@ -179,9 +179,27 @@ export class Orchestrator {
       this.deps.escalations.raise({ taskId: task.id, raisedBy: "orchestrator", reason: "approval_rejected", severity: "medium", toRole: this.agent(task.assignee).defaultEscalationRole, summary: `Approval ${approvalId} rejected by ${humanId}: ${comment}` });
       return this.escalateIfWaiting(task.id);
     }
+    return this.executeApproval(approvalId);
+  }
+
+  /**
+   * ينفّذ كل الموافقات المعتمدة التي لم تُنفَّذ بعد، كالتي اعتُمدت أثناء الإيقاف الطارئ.
+   * يُستدعى يدويًا من المشغّل بعد رفع الإيقاف (ops/cli.ts resume)، ولا يحدث تلقائيًا.
+   */
+  async executePendingApproved(): Promise<Task[]> {
+    this.deps.killSwitch.assertNotEngaged();
+    const out: Task[] = [];
+    for (const a of this.deps.gate.list({ status: "approved" })) out.push(await this.executeApproval(a.id));
+    return out;
+  }
+
+  private async executeApproval(approvalId: string): Promise<Task> {
+    const taskId = this.deps.gate.get(approvalId).taskId;
     const result = await this.deps.executor().executeApproved(approvalId);
-    if (result.status !== "ok") return this.escalateIfWaiting(task.id, JSON.stringify(result));
-    return this.completeIfApprovalsDone(task.id);
+    // أثناء الإيقاف الطارئ: الموافقة تبقى approved والمهمة تنتظر. لا تصعيد ولا تنفيذ.
+    if (result.status === "denied" && result.code === "KILL_SWITCH_ACTIVE") return this.get(taskId);
+    if (result.status !== "ok") return this.escalateIfWaiting(taskId, JSON.stringify(result));
+    return this.completeIfApprovalsDone(taskId);
   }
 
   /** يحوّل الموافقات المنتهية إلى تصعيدات. يُشغَّل دوريًا (cron) في الإنتاج. */

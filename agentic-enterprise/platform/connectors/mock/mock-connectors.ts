@@ -167,7 +167,6 @@ export class MockErp implements ErpConnector {
 }
 
 export class MockPayments implements PaymentConnector {
-  private readonly payments: Payment[] = [];
   constructor(
     private readonly data: Fixtures,
     private readonly gate: ApprovalGate,
@@ -185,7 +184,7 @@ export class MockPayments implements PaymentConnector {
     const approval = this.gate.redeem(grant, "payment", { amount: instr.amount, currency: instr.currency });
     this.faults.check("payments.execute");
     const p: Payment = { id: newId("pay"), ...structuredClone(instr), executedAt: this.clock.now().toISOString(), approvalId: approval.id };
-    this.payments.push(p);
+    this.data.payments.push(p);
     for (const id of instr.invoiceIds) {
       const inv = this.data.invoices.find((i) => i.id === id);
       if (inv) inv.status = "paid";
@@ -194,12 +193,11 @@ export class MockPayments implements PaymentConnector {
     return structuredClone(p);
   }
   listPayments(f: { supplierId?: string } = {}) {
-    return structuredClone(this.payments.filter((p) => !f.supplierId || p.supplierId === f.supplierId));
+    return structuredClone(this.data.payments.filter((p) => !f.supplierId || p.supplierId === f.supplierId));
   }
 }
 
 export class MockEmail implements EmailConnector {
-  private readonly sent: Array<{ id: string; from: string; to: string[]; subject: string; body: string }> = [];
   constructor(
     private readonly data: Fixtures,
     private readonly gate: ApprovalGate,
@@ -211,12 +209,12 @@ export class MockEmail implements EmailConnector {
   send(msg: { from: string; to: string[]; subject: string; body: string }, grant: ApprovalGrant) {
     this.gate.redeem(grant, "external_send");
     const id = newId("mail");
-    this.sent.push({ id, ...structuredClone(msg) });
+    this.data.outbox.push({ id, ...structuredClone(msg) });
     this.writes.push({ connector: "email", method: "send", args: { id, to: msg.to } });
     return { id };
   }
   outbox() {
-    return structuredClone(this.sent);
+    return structuredClone(this.data.outbox);
   }
 }
 
@@ -259,6 +257,8 @@ export class MockSanctions implements SanctionsConnector {
 }
 
 export interface MockConnectors extends Connectors {
+  /** الحالة الكاملة للأنظمة الوهمية، لحفظها على القرص في وضع التشغيل عبر CLI. */
+  state: Fixtures;
   erp: MockErp;
   payments: MockPayments;
   email: MockEmail;
@@ -275,6 +275,7 @@ export function createMockConnectors(gate: ApprovalGate, clock: Clock, fixtures:
     payments: new MockPayments(fixtures, gate, clock, writes, faults),
     email: new MockEmail(fixtures, gate, writes),
     sanctions: new MockSanctions(fixtures, clock, writes),
+    state: fixtures,
     writes,
     faults,
   };

@@ -11,7 +11,7 @@ export type EvalMode = "scripted" | "live";
 export async function runScenario(s: EvalScenario, mode: EvalMode): Promise<ScenarioResult> {
   const started = Date.now();
   const base: Omit<ScenarioResult, "passed" | "checks" | "durationMs" | "costUsd"> = {
-    id: s.id, title: s.title, agent: s.agents[0]!.id, category: s.category, mode,
+    id: s.id, title: s.title, agent: s.owner ?? s.agents[0]!.id, category: s.category, mode,
   };
   if (mode === "live" && s.liveCompatible === false)
     return { ...base, passed: true, skipped: "scripted-only (simulates a compromised model)", checks: [], durationMs: 0, costUsd: 0 };

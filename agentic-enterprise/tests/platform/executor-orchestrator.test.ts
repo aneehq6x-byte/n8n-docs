@@ -61,6 +61,21 @@ describe("ToolExecutor", () => {
     expect(await p.executor.executeApproved(a!.id)).toMatchObject({ status: "denied", code: "APPROVAL_INVALID" });
   });
 
+  it("approval granted during an emergency stop is held, not escalated, and executes only on explicit resume", async () => {
+    const { p } = testPlatform();
+    p.register(testAgent({ policy: async ({ tools }) => (await tools.call("send_email", { to: "a@example.com", body: "x" }), done("waiting", { status: "needs_approval" })) }));
+    const t = p.orchestrator.submit({ type: "test.run", input: {}, originator: "u-requester" });
+    await p.orchestrator.run(t.id);
+    p.killSwitch.engage("incident drill", false);
+    const [a] = p.gate.list({ status: "pending" });
+    expect((await p.orchestrator.decideApproval(a!.id, "u-cs-sup", "approve")).status).toBe("awaiting_approval");
+    expect(p.connectors.email.outbox()).toHaveLength(0);
+    await expect(p.orchestrator.executePendingApproved()).rejects.toThrow(/Emergency stop/);
+    p.killSwitch.release();
+    expect((await p.orchestrator.executePendingApproved())[0]!.status).toBe("completed");
+    expect(p.connectors.email.outbox()).toHaveLength(1);
+  });
+
   it("refuses execution if the stored payload was modified after approval", async () => {
     const { p } = testPlatform();
     const agent = testAgent({ policy: async ({ tools }) => (await tools.call("send_email", { to: "a@example.com", body: "hi" }), done("", { status: "needs_approval" })) });
