@@ -13,6 +13,7 @@ import type {
   PurchaseOrder,
   Requisition,
   SanctionsConnector,
+  ScreeningRecord,
   Supplier,
 } from "../types.ts";
 import { defaultFixtures, type Fixtures } from "./fixtures.ts";
@@ -220,12 +221,40 @@ export class MockEmail implements EmailConnector {
 }
 
 export class MockSanctions implements SanctionsConnector {
-  constructor(private readonly data: Fixtures) {}
+  constructor(
+    private readonly data: Fixtures,
+    private readonly clock: Clock,
+    private readonly writes: WriteRecord[],
+  ) {}
   entries() {
     return structuredClone(this.data.sanctions);
   }
   listVersion() {
     return "FICTIONAL-2029-03-01";
+  }
+  recordScreening(r: Omit<ScreeningRecord, "id" | "screenedAt">): ScreeningRecord {
+    if (r.status !== "clear" && r.status !== "potential_match") throw new PlatformError("CONNECTOR_ERROR", `Automated screening cannot record status ${r.status}`);
+    const rec: ScreeningRecord = { ...structuredClone(r), id: newId("scr"), screenedAt: this.clock.now().toISOString() };
+    this.data.screenings.push(rec);
+    this.writes.push({ connector: "sanctions", method: "recordScreening", args: { id: rec.id, partyId: rec.partyId, status: rec.status } });
+    return structuredClone(rec);
+  }
+  latestScreening(partyId: string) {
+    const all = this.data.screenings.filter((s) => s.partyId === partyId);
+    return structuredClone(all[all.length - 1] ?? null);
+  }
+  resolveScreening(id: string, humanId: string, status: "false_positive" | "confirmed_match", note: string): ScreeningRecord {
+    const s = this.data.screenings.find((x) => x.id === id);
+    if (!s) throw new PlatformError("NOT_FOUND", `Screening ${id} not found`);
+    if (s.status !== "potential_match") throw new PlatformError("CONNECTOR_ERROR", `Only potential matches can be resolved (is ${s.status})`);
+    // القرار البشري يُسجَّل كسجل جديد، فيبقى سجل الفحص الآلي الأصلي كما هو.
+    const rec: ScreeningRecord = { ...structuredClone(s), id: newId("scr"), status, screenedBy: humanId, note, screenedAt: this.clock.now().toISOString() };
+    this.data.screenings.push(rec);
+    this.writes.push({ connector: "sanctions", method: "resolveScreening", args: { id: rec.id, status } });
+    return structuredClone(rec);
+  }
+  seed(mutator: (data: Fixtures) => void): void {
+    mutator(this.data);
   }
 }
 
@@ -245,7 +274,7 @@ export function createMockConnectors(gate: ApprovalGate, clock: Clock, fixtures:
     erp: new MockErp(fixtures, gate, clock, writes, faults),
     payments: new MockPayments(fixtures, gate, clock, writes, faults),
     email: new MockEmail(fixtures, gate, writes),
-    sanctions: new MockSanctions(fixtures),
+    sanctions: new MockSanctions(fixtures, clock, writes),
     writes,
     faults,
   };

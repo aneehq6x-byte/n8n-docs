@@ -1,4 +1,4 @@
-import type { Budget, CatalogItem, EmailMessage, GoodsReceipt, Invoice, PurchaseOrder, Requisition, SanctionsEntry, Supplier } from "../types.ts";
+import type { ScreeningRecord, Budget, CatalogItem, EmailMessage, GoodsReceipt, Invoice, PurchaseOrder, Requisition, SanctionsEntry, Supplier } from "../types.ts";
 
 /**
  * بيانات وهمية بالكامل للتطوير والاختبار. أي تشابه مع أسماء حقيقية غير مقصود.
@@ -15,6 +15,7 @@ export interface Fixtures {
   invoices: Invoice[];
   inbox: Record<string, EmailMessage[]>;
   sanctions: SanctionsEntry[];
+  screenings: ScreeningRecord[];
 }
 
 const verified = "2028-11-15T00:00:00.000Z";
@@ -89,4 +90,5 @@ const FIXTURES: Fixtures = {
     { id: "FX-EU-0102", list: "EU_CONSOLIDATED", name: "Crescent Maritime Holdings Ltd", aliases: ["CMH Shipping"], country: "CY", type: "entity" },
     { id: "FX-UN-0207", list: "UN_SC", name: "Zarqa Trading Establishment", aliases: ["مؤسسة الزرقاء للتجارة"], country: null, type: "entity" },
   ],
+  screenings: [],
 };

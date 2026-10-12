@@ -164,9 +164,33 @@ export interface EmailConnector {
   outbox(): Array<{ id: string; from: string; to: string[]; subject: string; body: string }>;
 }
 
+/**
+ * نتيجة فحص طرف (مورد أو عميل) مقابل قوائم العقوبات. هذا هو السجل المرجعي الذي يعتمد عليه الدفع.
+ * - clear وpotential_match: يسجلهما وكيل الفحص.
+ * - false_positive وconfirmed_match: قرار بشري حصريًا (compliance_officer) عبر resolveScreening.
+ */
+export interface ScreeningRecord {
+  id: string;
+  partyType: "supplier" | "customer";
+  partyId: string;
+  partyName: string;
+  status: "clear" | "potential_match" | "false_positive" | "confirmed_match";
+  listVersion: string;
+  candidates: Array<{ entryId: string; entryName: string; score: number }>;
+  screenedAt: string;
+  screenedBy: string;
+  note: string;
+  sourceTaskId: string;
+}
+
 export interface SanctionsConnector {
   entries(): SanctionsEntry[];
   listVersion(): string;
+  /** كتابة داخلية: يسجّل نتيجة الفحص الآلي. لا يقبل إلا clear أو potential_match. */
+  recordScreening(r: Omit<ScreeningRecord, "id" | "screenedAt">): ScreeningRecord;
+  latestScreening(partyId: string): ScreeningRecord | null;
+  /** قرار بشري حصري. لا توجد أداة وكيل تستدعيه. */
+  resolveScreening(id: string, humanId: string, status: "false_positive" | "confirmed_match", note: string): ScreeningRecord;
 }
 
 export interface Connectors {

@@ -9,7 +9,7 @@
 | 0 | الأسئلة والافتراضات | ✅ |
 | 1 | تحليل المجالات: [`docs/domains.md`](docs/domains.md) | ✅ |
 | 2 | البنية المشتركة: [`platform/`](platform/README.md) | ✅ |
-| 3 | بناء الوكلاء: [`agents/procurement/`](agents/procurement/README.md) كنموذج | قيد المراجعة (المالية والامتثال بعد الموافقة) |
+| 3 | بناء الوكلاء: [المشتريات](agents/procurement/README.md)، [المالية](agents/finance/README.md)، [الامتثال](agents/compliance/README.md) | قيد المراجعة |
 | 4 | التكامل والتشغيل | لم تبدأ |
 | 5 | التقرير النهائي | لم تبدأ |
 

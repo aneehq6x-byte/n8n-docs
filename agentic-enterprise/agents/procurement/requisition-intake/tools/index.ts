@@ -1,6 +1,6 @@
 import { assessRequisitionTool } from "../../shared/tools/assess-requisition.ts";
 import { getRequisition } from "../../shared/tools/get-requisition.ts";
-import { getSupplier } from "../../shared/tools/get-supplier.ts";
+import { getSupplier } from "../../../common/tools/get-supplier.ts";
 import { searchCatalog } from "../../shared/tools/search-catalog.ts";
 import { recordRequisitionDecision } from "./record-requisition-decision.ts";
 
@@ -11,7 +11,7 @@ import { recordRequisitionDecision } from "./record-requisition-decision.ts";
  * |-------------------------------|----------|----------------------------------------------|
  * | get_requisition               | read     | shared/tools/get-requisition.ts              |
  * | assess_requisition            | read     | shared/tools/assess-requisition.ts           |
- * | get_supplier                  | read     | shared/tools/get-supplier.ts                 |
+ * | get_supplier                  | read     | common/tools/get-supplier.ts                 |
  * | search_catalog                | read     | shared/tools/search-catalog.ts               |
  * | record_requisition_decision   | write    | tools/record-requisition-decision.ts         |
  *

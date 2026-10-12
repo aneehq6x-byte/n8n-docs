@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { defineTool } from "../../../../platform/tools/types.ts";
+import { defineTool } from "../../../platform/tools/types.ts";
 
 /**
  * get_supplier: يقرأ بيانات المورد الرئيسية.
