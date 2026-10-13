@@ -10,7 +10,7 @@ import { defineTool, type Guardrail } from "../platform/tools/types.ts";
 export function testPlatform(): { p: Platform; clock: ManualClock; runtime: ScriptedRuntime } {
   const clock = new ManualClock();
   const runtime = new ScriptedRuntime();
-  const p = createPlatform({ config: { DATABASE_PATH: ":memory:", KILL_SWITCH: false }, clock, runtime, isolated: true, anchor: new MemoryAnchor(randomBytes(32)) });
+  const p = createPlatform({ config: { DATABASE_PATH: ":memory:", KILL_SWITCH: false }, clock, runtime, isolated: true, anchor: new MemoryAnchor(randomBytes(32)), devKeys: true });
   return { p, clock, runtime };
 }
 
@@ -67,3 +67,7 @@ export function testAgent(overrides: Partial<AgentDefinition> & { policy?: Refer
     ...rest,
   });
 }
+
+/** قرار على مستوى البوابة مباشرة، موقّع بمفاتيح التطوير (وضع signed الافتراضي). */
+export const gd = (p: Platform, id: string, humanId: string, decision: "approve" | "reject", comment = "") =>
+  p.gate.decide(id, humanId, decision, comment, p.signDecision(id, humanId, decision, comment));

@@ -3,6 +3,7 @@ import type { AuditLog } from "../audit/audit-log.ts";
 import type { Database } from "../core/db.ts";
 import { parseJson, transaction } from "../core/db.ts";
 import type { HumanDirectory } from "../core/directory.ts";
+import type { ApproverKeyRegistry, DecisionProof } from "../identity/approver-keys.ts";
 import { PlatformError } from "../core/errors.ts";
 import { toUsd } from "../core/fx.ts";
 import type { HumanRole, IrreversibleAction, JsonObject, Money } from "../core/types.ts";
@@ -21,13 +22,23 @@ import { hashObject, newId, type Clock } from "../core/util.ts";
  * - الطلب تنتهي صلاحيته بعد TTL (الافتراضي 24 ساعة)، ولا يُنفَّذ بعدها.
  */
 
-export type ApprovalStatus = "pending" | "approved" | "rejected" | "expired" | "executed" | "execution_failed";
+export type ApprovalStatus = "pending" | "approved" | "rejected" | "expired" | "revoked" | "executed" | "execution_failed";
 
 export interface ApprovalDecision {
   humanId: string;
   decision: "approve" | "reject";
   comment: string;
   at: string;
+  /** كيف ثبتت هوية صاحب القرار: signed بتوقيع Ed25519، أو trusted دون توثيق (تطوير واختبار فقط). */
+  auth?: "signed" | "trusted";
+  keyFingerprint?: string;
+  signature?: string;
+  issuedAt?: string;
+}
+
+export interface ApproverAuth {
+  mode: "signed" | "trusted";
+  keys: ApproverKeyRegistry;
 }
 
 export interface ApprovalRequest {
@@ -105,6 +116,7 @@ export class ApprovalGate {
     private readonly directory: HumanDirectory,
     private readonly policy: ApprovalPolicy,
     private readonly clock: Clock,
+    private readonly auth: ApproverAuth,
   ) {
     db.exec(`
       CREATE TABLE IF NOT EXISTS approvals (
@@ -133,7 +145,25 @@ export class ApprovalGate {
     `);
   }
 
+  /**
+   * ينشئ طلب موافقة، أو يعيد الطلب القائم لنفس المهمة والأداة والحمولة (pending أو approved).
+   * هذا يجعل إعادة تشغيل المهمة بعد انهيار أو مهلة آمنة: لا يرى الموافق طلبين للإجراء نفسه (R9).
+   */
   request(input: CreateApprovalInput): ApprovalRequest {
+    return transaction(this.db, () => {
+      const payloadHash = hashObject(input.payload);
+      const existing = this.list({ taskId: input.taskId }).find(
+        (a) => a.toolName === input.toolName && a.payloadHash === payloadHash && (a.status === "pending" || a.status === "approved"),
+      );
+      if (existing) {
+        this.audit.append({ actor: { type: "agent", id: input.requestedBy }, action: "approval.request_deduplicated", target: existing.id, taskId: input.taskId, outcome: "info", data: { status: existing.status } });
+        return existing;
+      }
+      return this.createRequest(input);
+    });
+  }
+
+  private createRequest(input: CreateApprovalInput): ApprovalRequest {
     const policyRoles = this.policy.rolesFor(input.actionType);
     const roles = input.roles ? input.roles.filter((r) => policyRoles.includes(r)) : policyRoles;
     if (roles.length === 0) throw new PlatformError("UNAUTHORIZED_APPROVER", "No permitted approver roles for this action");
@@ -212,7 +242,7 @@ export class ApprovalGate {
   }
 
   /** قرار بشري. يفرض الدور، وفصل الصلاحيات، وعدم التكرار، وانتهاء الصلاحية. */
-  decide(id: string, humanId: string, decision: "approve" | "reject", comment = ""): ApprovalRequest {
+  decide(id: string, humanId: string, decision: "approve" | "reject", comment = "", proof?: DecisionProof): ApprovalRequest {
     const before = this.get(id);
     if (before.status === "pending" && this.isExpired(before)) {
       this.setStatus(id, "expired");
@@ -229,8 +259,16 @@ export class ApprovalGate {
           throw new PlatformError("UNAUTHORIZED_APPROVER", `Role(s) [${human.roles.join(",")}] cannot decide ${req.actionType}`);
         if (humanId === req.originator) throw new PlatformError("SOD_VIOLATION", "The task originator cannot approve their own request");
         if (req.decisions.some((d) => d.humanId === humanId)) throw new PlatformError("SOD_VIOLATION", "The same person cannot decide twice");
+        if (decision === "reject" && !comment.trim()) throw new PlatformError("INVALID_INPUT", "A rejection requires a reason");
 
-        const decisions = [...req.decisions, { humanId, decision, comment, at: this.clock.now().toISOString() }];
+        // إثبات الهوية والربط بالإجراء الدقيق: التوقيع يغطي hash الحمولة، فأي تغيير فيها يُبطل القرار.
+        let provenance: Pick<ApprovalDecision, "auth" | "keyFingerprint" | "signature" | "issuedAt"> = { auth: "trusted" };
+        if (this.auth.mode === "signed") {
+          const keyFingerprint = this.auth.keys.verifyDecision(proof, { approvalId: id, humanId, decision, payloadHash: req.payloadHash, comment, issuedAt: proof?.issuedAt ?? "" });
+          provenance = { auth: "signed", keyFingerprint, signature: proof!.signature, issuedAt: proof!.issuedAt };
+        }
+
+        const decisions: ApprovalDecision[] = [...req.decisions, { humanId, decision, comment, at: this.clock.now().toISOString(), ...provenance }];
         const approvals = decisions.filter((d) => d.decision === "approve").length;
         const status: ApprovalStatus =
           decision === "reject" ? "rejected" : approvals >= req.requiredApprovals ? "approved" : "pending";
@@ -241,7 +279,7 @@ export class ApprovalGate {
           target: id,
           taskId: req.taskId,
           outcome: "success",
-          data: { status, approvals, required: req.requiredApprovals, comment },
+          data: { status, approvals, required: req.requiredApprovals, comment, auth: provenance.auth!, ...(provenance.keyFingerprint ? { keyFingerprint: provenance.keyFingerprint } : {}) },
         });
         return { ...req, decisions, status };
       });
@@ -258,6 +296,25 @@ export class ApprovalGate {
       }
       throw err;
     }
+  }
+
+  /**
+   * سحب موافقة قبل تنفيذها (pending أو approved). يملكه من يحمل دورًا مسموحًا لهذا الإجراء.
+   * بعد السحب لا يمكن إصدار تفويض، فلا يُنفَّذ الإجراء أبدًا.
+   */
+  revoke(id: string, humanId: string, reason: string): ApprovalRequest {
+    if (!reason.trim()) throw new PlatformError("INVALID_INPUT", "Revocation requires a reason");
+    return transaction(this.db, () => {
+      const req = this.get(id);
+      const human = this.directory.get(humanId);
+      if (!human.roles.some((r) => req.allowedRoles.includes(r)) && !human.roles.includes("platform_operator"))
+        throw new PlatformError("UNAUTHORIZED_APPROVER", `Role(s) [${human.roles.join(",")}] cannot revoke ${req.actionType}`);
+      if (req.status !== "pending" && req.status !== "approved") throw new PlatformError("APPROVAL_INVALID", `Approval is ${req.status}; only pending or approved can be revoked`);
+      this.db.prepare("UPDATE approvals SET status = 'revoked' WHERE id = ? AND status IN ('pending','approved') AND grant_nonce IS NULL").run(id);
+      if (this.get(id).status !== "revoked") throw new PlatformError("APPROVAL_INVALID", "Execution already started; cannot revoke");
+      this.audit.append({ actor: { type: "human", id: humanId }, action: "approval.revoke", target: id, taskId: req.taskId, outcome: "success", data: { reason, previous: req.status } });
+      return { ...req, status: "revoked" as const };
+    });
   }
 
   /** يصدر تفويض تنفيذ لطلب موافق عليه. يستدعيه ToolExecutor فقط. */

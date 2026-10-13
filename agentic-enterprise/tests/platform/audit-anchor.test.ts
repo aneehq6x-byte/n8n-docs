@@ -65,6 +65,15 @@ describe("external audit anchoring", () => {
     expect(log.verify()).toMatchObject({ valid: false, firstBrokenSeq: body.seq, reason: expect.stringMatching(/no anchor/) });
   });
 
+  it("treats two different anchors for the same event as tampering", () => {
+    const { log, anchor } = setup(3);
+    anchor.lines.push({ ...anchor.lines[1]! }); // تكرار مطابق: مقبول
+    expect(log.verify().valid).toBe(true);
+    // تثبيت متعارض موقّع بالمفتاح الصحيح: ما كان سيحدث لو ثُبِّت حدث تراجعت معاملته
+    anchor.record(2, "e".repeat(64), "2029-03-01T08:00:00.000Z");
+    expect(log.verify()).toMatchObject({ valid: false, firstBrokenSeq: 2, reason: expect.stringMatching(/conflicting anchors/) });
+  });
+
   it("does not anchor events whose transaction rolled back (no false alarms)", () => {
     const { db, log } = setup(3);
     expect(() => transaction(db, () => (log.append({ actor: { type: "system", id: "t" }, action: "rolled-back", outcome: "info" }), (() => { throw new Error("abort"); })()))).toThrow("abort");
@@ -99,7 +108,7 @@ describe("external audit anchoring", () => {
     await p.orchestrator.drain();
     const [a] = p.gate.list({ status: "pending" });
     rewriteChain(p.db, 2);
-    await expect(p.orchestrator.decideApproval(a!.id, "u-cs-sup", "approve")).rejects.toThrow(/AUDIT|audit chain broken/i);
+    await expect(p.decide(a!.id, "u-cs-sup", "approve")).rejects.toThrow(/AUDIT|audit chain broken/i);
     expect(p.killSwitch.isEngaged()).toBe(true);
     expect(p.gate.get(a!.id).status).toBe("pending");
     expect(p.connectors.email.outbox()).toHaveLength(0);

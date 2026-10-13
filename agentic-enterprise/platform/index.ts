@@ -9,8 +9,10 @@ import { openDatabase, type Database } from "./core/db.ts";
 import { DEFAULT_HUMANS, HumanDirectory } from "./core/directory.ts";
 import { KillSwitch } from "./core/kill-switch.ts";
 import type { Human } from "./core/types.ts";
+import type { Task } from "./orchestrator/task.ts";
 import { systemClock, type Clock } from "./core/util.ts";
 import { EscalationService, InMemoryNotifier } from "./escalation/escalation.ts";
+import { ApproverKeyRegistry, DevSigner, type DecisionProof } from "./identity/approver-keys.ts";
 import { MemoryStore } from "./memory/memory-store.ts";
 import { Orchestrator } from "./orchestrator/orchestrator.ts";
 import { ClaudeAgentRuntime } from "./runtime/claude-runtime.ts";
@@ -35,7 +37,12 @@ export interface Platform {
   executor: ToolExecutor;
   orchestrator: Orchestrator;
   runtime: AgentRuntime;
+  keys: ApproverKeyRegistry;
   register(...agents: AgentDefinition[]): Platform;
+  /** يبني إثبات قرار موقّعًا بمفاتيح التطوير (يتطلب devKeys). */
+  signDecision(approvalId: string, humanId: string, decision: "approve" | "reject", comment?: string): DecisionProof;
+  /** قرار بشري كامل عبر المنسق، موقّع تلقائيًا في وضع signed عند توفر مفاتيح التطوير. */
+  decide(approvalId: string, humanId: string, decision: "approve" | "reject", comment?: string): Promise<Task>;
   close(): void;
 }
 
@@ -51,6 +58,8 @@ export interface CreatePlatformOptions {
   forensic?: boolean;
   /** تثبيت audit صريح (للاختبارات). الافتراضي: ملف HMAC إن وُجد المفتاح، وإلا بلا تثبيت. */
   anchor?: AuditAnchor;
+  /** يولّد مفاتيح موافقين في الذاكرة ويسجلها (اختبارات وتطوير فقط). يتيح p.decide بتوقيع حقيقي. */
+  devKeys?: boolean;
 }
 
 export function createPlatform(opts: CreatePlatformOptions = {}): Platform {
@@ -65,7 +74,9 @@ export function createPlatform(opts: CreatePlatformOptions = {}): Platform {
   // الإقلاع يرفض سجلًا تالفًا (fail-closed). الوضع الجنائي يسمح بالفتح للتشخيص فقط، مع إيقاف طارئ إلزامي.
   if (!opts.forensic) audit.assertIntact();
   const directory = new HumanDirectory(opts.humans ?? DEFAULT_HUMANS);
-  const gate = new ApprovalGate(db, audit, directory, defaultPolicy(config.APPROVAL_TTL_HOURS, config.DUAL_APPROVAL_THRESHOLD_USD), clock);
+  const keys = new ApproverKeyRegistry(db, audit, directory, clock);
+  const gate = new ApprovalGate(db, audit, directory, defaultPolicy(config.APPROVAL_TTL_HOURS, config.DUAL_APPROVAL_THRESHOLD_USD), clock, { mode: config.APPROVER_AUTH, keys });
+  const devSigner = opts.devKeys ? new DevSigner(keys, (opts.humans ?? DEFAULT_HUMANS).map((h) => h.id)) : null;
   const notifier = new InMemoryNotifier();
   const escalations = new EscalationService(db, audit, clock, notifier);
   const memory = new MemoryStore(db, audit, clock);
@@ -91,9 +102,18 @@ export function createPlatform(opts: CreatePlatformOptions = {}): Platform {
 
   const platform: Platform = {
     config, db, clock, audit, gate, escalations, notifier, memory, killSwitch, directory, connectors, executor, orchestrator, runtime,
+    keys,
     register(...agents) {
       for (const a of agents) orchestrator.register(a);
       return platform;
+    },
+    signDecision(approvalId, humanId, decision, comment = "") {
+      if (!devSigner) throw new Error("signDecision requires createPlatform({ devKeys: true })");
+      return devSigner.sign({ approvalId, humanId, decision, comment, payloadHash: gate.get(approvalId).payloadHash, issuedAt: clock.now().toISOString() });
+    },
+    decide(approvalId, humanId, decision, comment = "") {
+      const proof = config.APPROVER_AUTH === "signed" && devSigner ? platform.signDecision(approvalId, humanId, decision, comment) : undefined;
+      return orchestrator.decideApproval(approvalId, humanId, decision, comment, proof);
     },
     close() {
       db.close();

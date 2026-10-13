@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { redactPii } from "../../platform/memory/memory-store.ts";
 import { renderTaskPrompt } from "../../platform/runtime/claude-runtime.ts";
 import { detectInjection, wrapUntrusted } from "../../platform/security/untrusted.ts";
-import { testAgent, testPlatform } from "../helpers.ts";
+import { testAgent, testPlatform, gd } from "../helpers.ts";
 
 describe("Memory", () => {
   it("enforces namespace policy, redacts PII unless allowed, and erases by subject", () => {
@@ -71,7 +71,7 @@ describe("Mock connectors", () => {
   it("only pays approved suppliers on their master-data IBAN, without consuming the grant on refusal", () => {
     const { p } = testPlatform();
     const req = p.gate.request({ taskId: "t", actionType: "payment", toolName: "pay", requestedBy: "a", originator: "u-requester", payload: {}, summary: "s", money: { amount: 112_700, currency: "SAR" } });
-    p.gate.decide(req.id, "u-fin-ctrl", "approve");
+    gd(p, req.id, "u-fin-ctrl", "approve");
     const grant = p.gate.issueGrant(req.id);
     expect(() => p.connectors.payments.execute({ invoiceIds: ["INV-9003"], supplierId: "sup-002", iban: "SA0380000000608010167519", amount: 112_700, currency: "SAR" }, grant)).toThrow(/IBAN does not match/);
     expect(p.gate.get(req.id).status).toBe("approved");

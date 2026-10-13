@@ -164,8 +164,14 @@ export class AuditLog {
     const lastSeq = rows.length;
     if (a.invalidSignatures > 0) return { ...broken(lastSeq, 0, `${a.invalidSignatures} anchor entr(y/ies) with invalid signature`), anchoring };
     if (!a.present && lastSeq > 0) return { ...broken(lastSeq, 1, "anchor store missing while audit log has events"), anchoring };
+    // النظام السليم لا يثبّت الرقم نفسه مرتين (التثبيت بعد الالتزام فقط). تثبيتان متعارضان لرقم واحد يعنيان
+    // تثبيتًا لحدث تراجعت معاملته (عيب) أو محاولة إقحام تثبيت بديل (تلاعب). كلاهما فشل.
     const anchored = new Map<number, string>();
-    for (const e of a.entries) anchored.set(e.seq, e.hash);
+    for (const e of a.entries) {
+      const prior = anchored.get(e.seq);
+      if (prior !== undefined && prior !== e.hash) return { ...broken(lastSeq, e.seq, "conflicting anchors for the same event"), anchoring };
+      anchored.set(e.seq, e.hash);
+    }
     for (const [seq, hash] of [...anchored].sort((x, y) => x[0] - y[0])) {
       const dbHash = hashes.get(seq);
       if (dbHash === undefined) return { ...broken(lastSeq, seq, "anchored event missing from audit log (deletion or truncation)"), anchoring };

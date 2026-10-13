@@ -21,6 +21,7 @@ export const ESCALATION_REASONS = [
   "suspected_prompt_injection",
   "approval_rejected",
   "approval_expired",
+  "approval_revoked",
   "execution_failed",
   "max_attempts_exceeded",
   "missing_data",

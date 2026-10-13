@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { allow } from "../../platform/tools/types.ts";
-import { done, testAgent, testPlatform } from "../helpers.ts";
+import { done, testAgent, testPlatform, gd } from "../helpers.ts";
 
 describe("ToolExecutor", () => {
   it("denies everything while the kill switch is engaged", async () => {
@@ -54,7 +54,7 @@ describe("ToolExecutor", () => {
 
     const [a] = p.gate.list({ status: "pending" });
     expect(a!.allowedRoles).toEqual(["cs_supervisor"]);
-    const final = await p.orchestrator.decideApproval(a!.id, "u-cs-sup", "approve");
+    const final = await p.decide(a!.id, "u-cs-sup", "approve");
     expect(final.status).toBe("completed");
     expect(p.connectors.email.outbox()).toMatchObject([{ to: ["client@example.com"], body: "Approved text" }]);
     // لا يمكن تنفيذه مرة ثانية
@@ -68,7 +68,7 @@ describe("ToolExecutor", () => {
     await p.orchestrator.run(t.id);
     p.killSwitch.engage("incident drill", false);
     const [a] = p.gate.list({ status: "pending" });
-    expect((await p.orchestrator.decideApproval(a!.id, "u-cs-sup", "approve")).status).toBe("awaiting_approval");
+    expect((await p.decide(a!.id, "u-cs-sup", "approve")).status).toBe("awaiting_approval");
     expect(p.connectors.email.outbox()).toHaveLength(0);
     await expect(p.orchestrator.executePendingApproved()).rejects.toThrow(/Emergency stop/);
     p.killSwitch.release();
@@ -83,7 +83,7 @@ describe("ToolExecutor", () => {
     const t = p.orchestrator.submit({ type: "test.run", input: {}, originator: "u-requester" });
     await p.orchestrator.run(t.id);
     const [a] = p.gate.list({ status: "pending" });
-    p.gate.decide(a!.id, "u-cs-sup", "approve");
+    gd(p, a!.id, "u-cs-sup", "approve");
     p.db.prepare("UPDATE approvals SET payload = ? WHERE id = ?").run(JSON.stringify({ to: "attacker@evil.example", body: "hi" }), a!.id);
     expect(await p.executor.executeApproved(a!.id)).toMatchObject({ code: "PAYLOAD_TAMPERED" });
     expect(p.connectors.email.outbox()).toHaveLength(0);
@@ -150,7 +150,7 @@ describe("Orchestrator", () => {
     const t = p.orchestrator.submit({ type: "test.run", input: {}, originator: "u-requester" });
     await p.orchestrator.drain();
     expect(p.orchestrator.list({ parentId: t.id })).toHaveLength(0);
-    await p.orchestrator.decideApproval(p.gate.list()[0]!.id, "u-cs-sup", "approve");
+    await p.decide(p.gate.list()[0]!.id, "u-cs-sup", "approve");
     expect(p.orchestrator.list({ parentId: t.id })).toHaveLength(1);
   });
 
@@ -205,7 +205,7 @@ describe("Orchestrator", () => {
     const t2 = p.orchestrator.submit({ type: "test.run", input: {}, originator: "u-requester" });
     await p.orchestrator.drain();
     const [a1] = p.gate.list({ taskId: t1.id });
-    expect((await p.orchestrator.decideApproval(a1!.id, "u-cs-sup", "reject", "tone")).status).toBe("escalated");
+    expect((await p.decide(a1!.id, "u-cs-sup", "reject", "tone")).status).toBe("escalated");
     clock.advanceHours(30);
     expect(p.orchestrator.sweepExpiredApprovals()).toBe(1);
     expect(p.orchestrator.get(t2.id).status).toBe("escalated");

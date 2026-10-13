@@ -3,7 +3,7 @@ import type { Platform } from "../platform/index.ts";
 /**
  * مؤشرات التشغيل والتنبيهات. كل رقم هنا مشتق من السجلات المرجعية (المهام، والموافقات، والتصعيدات، وaudit log)،
  * لا من تقارير الوكلاء عن أنفسهم.
- * عتبات التنبيه موثقة في docs/runbook.md، وأي تغيير هنا يجب أن ينعكس هناك.
+ * عتبات التنبيه موثقة في docs/operations/RUNBOOK.md، وأي تغيير هنا يجب أن ينعكس هناك.
  */
 
 export const ALERT_THRESHOLDS = {
@@ -96,6 +96,7 @@ export function computeMetrics(p: Platform): Metrics {
   const alerts: Alert[] = [];
   const add = (level: AlertLevel, code: string, message: string, action: string) => alerts.push({ level, code, message, action });
   if (!audit.valid) add("critical", "AUDIT_TAMPERED", `Audit chain broken at seq ${audit.firstBrokenSeq}`, "Engage kill switch, page CISO, follow runbook §6.2");
+  if (p.config.APPROVER_AUTH !== "signed") add("warning", "APPROVER_AUTH_TRUSTED", "Approval decisions are not cryptographically signed: any shell user can approve as anyone", "Set APPROVER_AUTH=signed and register approver keys (runbook §3.1)");
   if (audit.anchoring === "none") add("warning", "AUDIT_ANCHOR_DISABLED", "Audit log is not externally anchored: truncation and full rewrites are undetectable", "Set AUDIT_ANCHOR_KEY (and AUDIT_ANCHOR_REQUIRED=true in production); runbook §2.4");
   if (p.killSwitch.isEngaged()) add("critical", "KILL_SWITCH_ENGAGED", "Emergency stop is engaged; all agent actions halted", "Follow runbook §5 release checklist when resolved");
   const critical = escalations.filter((e) => e.severity === "critical");

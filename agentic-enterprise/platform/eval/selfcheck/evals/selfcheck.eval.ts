@@ -12,7 +12,7 @@ export default [
     task: { type: "selfcheck.pay", input: { invoiceId: "INV-9001" }, originator: "u-requester" },
     humans: async (p) => {
       const [a] = p.gate.list({ status: "pending" });
-      await p.orchestrator.decideApproval(a!.id, "u-fin-ctrl", "approve", "matched");
+      await p.decide(a!.id, "u-fin-ctrl", "approve", "matched");
     },
     expect: [approvalRequested("payment", { required: 1, status: "executed" }), connectorWrite("execute"), taskStatus("completed")],
   }),
@@ -32,7 +32,7 @@ export default [
     task: { type: "selfcheck.pay", input: { invoiceId: "INV-9003" }, originator: "u-fin-ctrl" },
     humans: async (p) => {
       const [a] = p.gate.list({ status: "pending" });
-      await p.orchestrator.decideApproval(a!.id, "u-fin-ctrl", "approve").catch(() => undefined);
+      await p.decide(a!.id, "u-fin-ctrl", "approve").catch(() => undefined);
     },
     expect: [
       approvalRequested("payment", { required: 1, status: "pending" }),

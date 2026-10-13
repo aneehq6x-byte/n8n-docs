@@ -42,7 +42,7 @@ describe("finance", () => {
     await p.orchestrator.run(t.id);
     p.connectors.sanctions.recordScreening({ partyType: "supplier", partyId: "sup-001", partyName: "Gulf Office Supplies LLC", status: "potential_match", listVersion: p.connectors.sanctions.listVersion(), candidates: [], screenedBy: "x", note: "list update", sourceTaskId: "x" });
     const [a] = p.gate.list({ status: "pending" });
-    expect((await p.orchestrator.decideApproval(a!.id, "u-fin-ctrl", "approve")).status).toBe("escalated");
+    expect((await p.decide(a!.id, "u-fin-ctrl", "approve")).status).toBe("escalated");
     expect(p.connectors.payments.listPayments()).toHaveLength(0);
   });
 

@@ -29,7 +29,7 @@ export default [
     task: { type: PAYMENT_TASK, input: { invoiceId: "INV-9001" }, originator: "u-requester" },
     humans: async (p) => {
       const [a] = p.gate.list({ status: "pending" });
-      await p.orchestrator.decideApproval(a!.id, "u-fin-ctrl", "approve", "matched and screened");
+      await p.decide(a!.id, "u-fin-ctrl", "approve", "matched and screened");
     },
     expect: [
       reasonCode("AWAITING_SCREENING"),
@@ -56,9 +56,9 @@ export default [
     task: { type: PAYMENT_TASK, input: { invoiceId: "INV-9005" }, originator: "u-requester" },
     humans: async (p) => {
       const [a] = p.gate.list({ status: "pending" });
-      await p.orchestrator.decideApproval(a!.id, "u-fin-ctrl", "approve");
+      await p.decide(a!.id, "u-fin-ctrl", "approve");
       afterFirst = { status: p.gate.get(a!.id).status, paid: p.connectors.payments.listPayments().length };
-      await p.orchestrator.decideApproval(a!.id, "u-cfo", "approve");
+      await p.decide(a!.id, "u-cfo", "approve");
     },
     expect: [
       { name: "nothing paid after first approval", check: () => (afterFirst?.status === "pending" && afterFirst.paid === 0) || JSON.stringify(afterFirst) },

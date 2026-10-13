@@ -2,7 +2,12 @@
 
 الجمهور: مشغّل المنصة (`platform_operator`)، والمسؤولون عن الأدوار البشرية (الموافقون ومستلمو التصعيد)، وفريق الأمن.
 
-> **وضع البيئة الحالي:** الأنظمة الخارجية (ERP، والدفع، والبريد، والعقوبات) كلها mocks، والهوية البشرية غير موثّقة (`--as`). هذا الدليل يصف التشغيل الفعلي للنسخة الحالية، ويشير إلى ما يتغير في الإنتاج (§8).
+> **وضع البيئة الحالي:**
+> - الأنظمة الخارجية (ERP، والدفع، والبريد، والعقوبات) كلها mocks.
+> - قرارات الموافقة موقّعة بمفاتيح Ed25519 لكل موافق.
+> - الأوامر البشرية الأخرى (submit وresolve وkill وclear-match) ما تزال تعتمد `--as` دون توثيق.
+>
+> هذا الدليل يصف التشغيل الفعلي للنسخة الحالية، ويشير إلى ما يتغير في الإنتاج (§8).
 
 ---
 
@@ -34,6 +39,12 @@ npm run check                 # يجب أن ينجح قبل أي تشغيل: typ
 | `APPROVAL_TTL_HOURS` | `24` | مدة صلاحية طلب الموافقة |
 | `DUAL_APPROVAL_THRESHOLD_USD` | `50000` | الحد الذي فوقه يلزم موافقان |
 | `AGENT_MAX_TURNS` / `AGENT_MAX_BUDGET_USD` | `20` / `2` | سقف الأدوار والتكلفة لكل تشغيل وكيل في الوضع الحي |
+| `AGENT_TIMEOUT_MS` | `300000` | مهلة تشغيل وكيل واحد. بعدها يُلغى التشغيل، وتُرفض استدعاءاته المتأخرة، وتعود المهمة للطابور بتأخير متصاعد |
+| `APPROVER_AUTH` | `signed` | `signed`: كل قرار موافقة يتطلب توقيع صاحبه. `trusted` للاختبار فقط، ويطلق تنبيه `APPROVER_AUTH_TRUSTED` |
+| `APPROVER_KEY_FILE` | (فارغ) | مسار المفتاح الخاص للموافق الذي يستخدم CLI على جهازه (بديل `--key`) |
+| `AUDIT_ANCHOR_KEY` | (فارغ) | مفتاح HMAC (≥ 32 بايت) لتثبيت audit خارج القاعدة. من مدير الأسرار فقط |
+| `AUDIT_ANCHOR_FILE` | `./data/audit-anchor.jsonl` | ملف التثبيت. في الإنتاج على وحدة تخزين منفصلة (append-only أو WORM) |
+| `AUDIT_ANCHOR_REQUIRED` | `false` | **اجعله `true` في الإنتاج:** يرفض الإقلاع دون مفتاح، فلا يمكن تعطيل التثبيت بحذف المتغير |
 
 ---
 
@@ -47,14 +58,21 @@ npm run check                 # يجب أن ينجح قبل أي تشغيل: typ
 npm run ops -- submit procurement.requisition '{"requisitionId":"REQ-2001"}' --as u-requester
 npm run ops -- run                 # يشغّل الطابور ويحوّل الموافقات المنتهية إلى تصعيدات
 npm run ops -- approvals           # طابور الموافقات
-npm run ops -- approve <apr_id> --as u-proc-mgr --comment "within budget"
-npm run ops -- reject  <apr_id> --as u-proc-mgr --comment "wrong cost center"
+npm run ops -- approve <apr_id> --as u-proc-mgr --key ~/.keys/proc-mgr.pem --comment "within budget"
+npm run ops -- reject  <apr_id> --as u-proc-mgr --key ~/.keys/proc-mgr.pem --comment "wrong cost center"   # السبب إلزامي
+npm run ops -- revoke  <apr_id> --as u-proc-mgr --comment "supplier dispute"   # قبل التنفيذ فقط
 npm run ops -- escalations
 npm run ops -- resolve <task_id> --as u-proc-mgr --action requeue --note "budget raised"
 npm run ops -- clear-match <scr_id> --as u-compliance --status false_positive --note "different DOB and nationality"
 ```
 
-### 2.2 أنواع المهام
+### 2.2 الموثوقية التلقائية
+
+- **المطالبة بالمهام ذرية:** تشغيل عدة نسخ من `run` بالتوازي آمن، وكل مهمة يشغلها عامل واحد.
+- **الفشل:** يعيد المهمة للطابور بتأخير متصاعد (30 ثانية، ثم 60، ثم 120، حتى 15 دقيقة). بعد 3 محاولات تُصعَّد.
+- **انهيار العامل:** يترك المهمة `running` حتى ينتهي إيجارها (المهلة + دقيقة)، ثم يعيدها `run` التالي إلى الطابور (`task.lease_expired` في audit).
+
+### 2.3 أنواع المهام
 
 | النوع | الوكيل | المدخلات |
 |-------|--------|----------|
@@ -66,7 +84,17 @@ npm run ops -- clear-match <scr_id> --as u-compliance --status false_positive --
 
 أي محتوى خارجي (بريد أو مرفق) يُمرَّر في `untrusted` فقط، ولا يوضع أبدًا في حقول أخرى.
 
-### 2.3 التحويل إلى الوضع الحي
+### 2.4 تفعيل تثبيت audit (إلزامي قبل الإنتاج)
+
+```bash
+# مرة واحدة: مفتاح في مدير الأسرار، لا في المستودع
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+export AUDIT_ANCHOR_KEY=<من مدير الأسرار>  AUDIT_ANCHOR_FILE=/mnt/audit-anchor/anchor.jsonl  AUDIT_ANCHOR_REQUIRED=true
+npm run ops -- audit verify      # يجب أن يظهر: anchoring: file, pending 0
+```
+فعّله من بداية قاعدة بيانات جديدة. الأحداث المسجلة قبل التفعيل بلا تثبيت، وسيعلنها التحقق تلاعبًا.
+
+### 2.5 التحويل إلى الوضع الحي
 
 1. `npm run check` ناجح.
 2. `npm run eval -- --live` ناجح على كل السيناريوهات المتوافقة. سيناريوهات "النموذج المخترَق" تعمل في الوضع الحتمي فقط، ويتخطاها الوضع الحي.
@@ -86,6 +114,18 @@ npm run ops -- clear-match <scr_id> --as u-compliance --status false_positive --
 | `cfo` | `u-cfo` | `payment`، و`commit_spend` (موافق ثانٍ فوق 50 ألف دولار) | — |
 | `compliance_officer` | `u-compliance` | تبرئة أو تأكيد تطابق العقوبات | تطابقات العقوبات |
 | `platform_operator` | `u-ops` | رفع الإيقاف الطارئ | — |
+
+### 3.1 مفاتيح الموافقين
+
+```bash
+npm run ops -- keys init u-cfo --out /secure/handover/cfo.pem --as u-ops   # يولّد ويسجّل، ويكتب المفتاح الخاص (600)
+npm run ops -- keys list                                                    # البصمات: يتحقق كل موافق من بصمته خارج النظام
+npm run ops -- keys revoke u-cfo --as u-ops                                  # عند فقدان المفتاح أو تسربه
+```
+
+- المفتاح الخاص يُسلَّم لصاحبه فقط، ويحذفه المشغّل بعد التسليم.
+- المنصة تخزّن المفتاح العام فقط.
+- كل تسجيل يظهر في audit (`identity.key_registered`).
 
 **قواعد مفروضة في الكود، لا تُتجاوز:**
 - من أنشأ السلسلة لا يوافق عليها.
@@ -110,7 +150,9 @@ npm run ops -- audit task <id>   # كل ما جرى في مهمة
 
 | الرمز | المستوى | الشرط | الاستجابة |
 |-------|---------|-------|-----------|
-| `AUDIT_TAMPERED` | critical | فشل التحقق من سلسلة hash | §6.2 فورًا |
+| `AUDIT_TAMPERED` | critical | فشل التحقق من السلسلة أو من التثبيت الخارجي | §6.2 فورًا. المنصة أوقفت نفسها آليًا |
+| `AUDIT_ANCHOR_DISABLED` | warning | لا تثبيت خارجي | §2.4 |
+| `APPROVER_AUTH_TRUSTED` | warning | قرارات موافقة غير موقّعة | `APPROVER_AUTH=signed` و§3.1 |
 | `KILL_SWITCH_ENGAGED` | critical | الإيقاف مفعّل | تأكد أنه مقصود، ثم §5.3 |
 | `CRITICAL_ESCALATION` | critical | تصعيد critical مفتوح (احتيال أو تلاعب) | الدور المالك خلال ساعة (§6.1) |
 | `ESCALATION_OVERDUE` | warning | تصعيد تجاوز مهلته | إبلاغ قائد الدور، أو إعادة إسناده |
@@ -159,7 +201,8 @@ npm run ops -- audit task <id>   # كل ما جرى في مهمة
 **أثر الإيقاف (مُختبَر في `e2e.emergency_stop_mid_flow` وفي unit tests):**
 - كل استدعاء أداة من أي وكيل يُرفض بالرمز `KILL_SWITCH_ACTIVE`، ويُسجَّل.
 - `run` لا يشغّل أي مهمة، فتبقى المهام في الطابور كما هي.
-- الموافقات البشرية تُسجَّل، **لكن لا يُنفَّذ أي إجراء**. تبقى `approved` حتى استئناف صريح.
+- الموافقات البشرية تُسجَّل، **لكن لا يُنفَّذ أي إجراء**. تبقى `approved` حتى استئناف صريح، ويمكن سحب أي منها قبل الاستئناف (`ops revoke`).
+- أي فشل في سلامة audit قبل قرار أو تنفيذ أو تشغيل طابور **يفعّل الإيقاف تلقائيًا**.
 - التشغيل الحي الجاري يتوقف عند استدعاء الأداة التالي.
 
 ### 5.3 الرفع: قائمة تحقق
@@ -191,7 +234,11 @@ npm run ops -- audit task <id>   # كل ما جرى في مهمة
 
 1. أوقف فورًا: `ops kill "audit tampered" --as u-ops`. في هذه الحالة يُقلع النظام موقوفًا أصلًا بالوضع الجنائي.
 2. لا تحذف ولا تصلح أي شيء. خذ نسخة من `DATABASE_PATH` وملفات `-wal` و`-shm`.
-3. `ops audit verify` يحدد أول سجل تالف. `status` و`metrics` و`audit` تعمل في الوضع الجنائي للقراءة فقط.
+3. `ops audit verify` يحدد أول سجل تالف ونوع التلف. `status` و`metrics` و`audit` تعمل في الوضع الجنائي للقراءة فقط.
+   - `content hash mismatch`: تعديل سجل منفرد.
+   - `anchored hash differs … (rewritten history)`: إعادة كتابة السلسلة.
+   - `anchored event missing … (deletion or truncation)`: حذف.
+   - `anchor store missing` أو `invalid signature`: العبث بملف التثبيت نفسه.
 4. أبلغ CISO. افحص من يملك صلاحية الكتابة على ملف القاعدة.
 5. لا يُرفع الإيقاف قبل استعادة نسخة سليمة، أو بدء سجل جديد بقرار موثّق من CISO والمراجع الداخلي.
 
@@ -220,7 +267,7 @@ npm run ops -- audit task <id>   # كل ما جرى في مهمة
 |--------|---------|-------------------|
 | تحويل الموافقات المنتهية إلى تصعيدات | كل دقيقة | ضمن `ops run` |
 | التحقق من audit | يوميًا، وقبل أي رفع إيقاف | `ops audit verify` |
-| نسخ احتياطي | يوميًا | نسخ `DATABASE_PATH`، مع `-wal` و`-shm` وملف `mock-state.json` |
+| نسخ احتياطي | يوميًا | القاعدة وملف التثبيت معًا. الإجراء في [`DISASTER_RECOVERY.md`](DISASTER_RECOVERY.md) |
 | اختبار الطفرات | مع كل تغيير في الحواجز أو التقييمات | `npm run mutation`، والمطلوب 0 missed |
 | evals حية | أسبوعيًا، ومع أي تغيير في النموذج أو البروموت | `npm run eval -- --live` |
 | مراجعة عينة القرارات (KPIs) | أسبوعيًا | 5% من قرارات كل وكيل |
@@ -234,10 +281,10 @@ npm run ops -- audit task <id>   # كل ما جرى في مهمة
 
 | البند | الآن | المطلوب |
 |-------|------|---------|
-| هوية الموافق | `--as` غير موثّق | SSO مع Okta، وMFA عند كل موافقة مالية، وربط القرار بالجلسة |
+| هوية الموافق | توقيع Ed25519 لكل قرار موافقة، والمفاتيح يسجلها platform_operator | ربط المفاتيح بـ SSO أو WebAuthn، وتوقيع باقي القرارات البشرية |
 | الأنظمة الخارجية | mocks | connectors حقيقية لـ SAP وGraph والبنك والقوائم، بالواجهات نفسها |
 | قاعدة البيانات | SQLite محلي | PostgreSQL مع نسخ متزامن |
-| audit log | سلسلة hash في القاعدة | نسخ رأس السلسلة دوريًا إلى تخزين WORM خارجي |
+| audit log | سلسلة hash مع تثبيت HMAC في ملف منفصل | المفتاح في KMS، والملف على WORM، وتصدير الرأس لطرف ثالث |
 | التشغيل | أوامر CLI | خدمة دائمة مع مجدول، وواجهة موافقات، وإشعارات Slack أو Teams |
 | المراقبة | `ops metrics` | تصدير إلى Prometheus أو Datadog، وتنبيهات on-call |
 | الإيقاف الطارئ | ملف محلي | علَم مركزي (feature flag) يصل إلى كل النسخ خلال ثوانٍ |

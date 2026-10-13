@@ -59,7 +59,7 @@ describe("procurement end-to-end", () => {
     await p.orchestrator.drain();
     const kids = p.orchestrator.list({ parentId: t.id });
     expect(kids.map((k) => k.input.supplierId).sort()).toEqual(["sup-001", "sup-003"]);
-    for (const a of p.gate.list({ status: "pending" })) await p.orchestrator.decideApproval(a.id, "u-proc-mgr", "approve");
+    for (const a of p.gate.list({ status: "pending" })) await p.decide(a.id, "u-proc-mgr", "approve");
     expect(p.connectors.erp.getRequisition("REQ-2103")!.poIds).toHaveLength(2);
     expect(kids.map((k) => p.orchestrator.get(k.id).status)).toEqual(["completed", "completed"]);
   });
@@ -70,7 +70,7 @@ describe("procurement end-to-end", () => {
     await p.orchestrator.run(t.id);
     p.connectors.erp.seed((d) => (d.catalog.find((c) => c.sku === "IT-LAPTOP-14")!.unitPrice = 1_600));
     const [a] = p.gate.list({ status: "pending" });
-    const final = await p.orchestrator.decideApproval(a!.id, "u-proc-mgr", "approve");
+    const final = await p.decide(a!.id, "u-proc-mgr", "approve");
     expect(final.status).toBe("escalated");
     expect(p.connectors.writes.filter((w) => w.method === "createPurchaseOrder")).toHaveLength(0);
     expect(p.escalations.list().map((e) => e.reason)).toContain("execution_failed");
@@ -82,7 +82,7 @@ describe("procurement end-to-end", () => {
     await p.orchestrator.run(t.id);
     p.connectors.faults.failNext("erp.createPurchaseOrder");
     const [a] = p.gate.list({ status: "pending" });
-    expect((await p.orchestrator.decideApproval(a!.id, "u-proc-mgr", "approve")).status).toBe("escalated");
+    expect((await p.decide(a!.id, "u-proc-mgr", "approve")).status).toBe("escalated");
     expect(p.gate.get(a!.id).status).toBe("execution_failed");
     expect(await p.executor.executeApproved(a!.id)).toMatchObject({ status: "denied" });
   });

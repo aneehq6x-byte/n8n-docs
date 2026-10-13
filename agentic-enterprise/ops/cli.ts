@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { parseArgs } from "node:util";
 import { ALL_AGENTS } from "../agents/index.ts";
@@ -7,6 +7,7 @@ import { loadConfig } from "../platform/config.ts";
 import { defaultFixtures, type Fixtures } from "../platform/connectors/mock/fixtures.ts";
 import { isPlatformError } from "../platform/core/errors.ts";
 import type { JsonObject } from "../platform/core/types.ts";
+import { generateApproverKeyPair, signDecision } from "../platform/identity/approver-keys.ts";
 import { createPlatform, type Platform } from "../platform/index.ts";
 import { computeMetrics } from "./metrics.ts";
 
@@ -18,7 +19,11 @@ import { computeMetrics } from "./metrics.ts";
  *   npm run ops -- submit <taskType> '<json>' --as <human>  إنشاء مهمة
  *   npm run ops -- run                                      تشغيل الطابور وتحويل الموافقات المنتهية إلى تصعيد
  *   npm run ops -- approvals                                طابور الموافقات
- *   npm run ops -- approve|reject <approvalId> --as <human> [--comment "…"]
+ *   npm run ops -- approve|reject <approvalId> --as <human> --key <private.pem> [--comment "…"]   (توقيع Ed25519)
+ *   npm run ops -- revoke <approvalId> --as <human> --comment "…"     سحب موافقة لم تُنفَّذ
+ *   npm run ops -- keys init <humanId> --out <private.pem> --as <operator>    توليد مفتاح موافق وتسجيله
+ *   npm run ops -- keys register <humanId> <public.pem> --as <operator>      تسجيل مفتاح عام قائم
+ *   npm run ops -- keys list | keys revoke <humanId> --as <human>
  *   npm run ops -- escalations                              التصعيدات المفتوحة
  *   npm run ops -- resolve <taskId> --as <human> --action requeue|complete|reject|cancel --note "…"
  *   npm run ops -- clear-match <screeningId> --as <human> --status false_positive|confirmed_match --note "…"
@@ -28,7 +33,8 @@ import { computeMetrics } from "./metrics.ts";
  *   npm run ops -- audit verify | audit tail [n] | audit task <taskId>
  *   npm run ops -- reset-demo --confirm                     حذف البيانات المحلية (بيئة التطوير فقط)
  *
- * تنبيه: --as غير موثّق الآن، ويُفترض تشغيل الأداة في بيئة موثوقة. ربط الهوية بـ SSO وMFA "مستقبلي" (runbook §8).
+ * الهوية: قرارات الموافقة موقّعة بمفتاح الموافق الخاص (APPROVER_AUTH=signed، الافتراضي)، فـ --as وحده لا يكفي.
+ * باقي الأوامر (submit وresolve وkill) ما تزال تعتمد --as دون توثيق، وربطها بـ SSO مخطط (IMPLEMENTATION_ROADMAP.md).
  */
 
 const config = loadConfig();
@@ -54,6 +60,8 @@ const { positionals, values } = parseArgs({
     action: { type: "string" },
     status: { type: "string" },
     json: { type: "boolean", default: false },
+    key: { type: "string" },
+    out: { type: "string" },
     confirm: { type: "boolean", default: false },
   },
 });
@@ -120,8 +128,42 @@ async function main(): Promise<void> {
         const id = args[0];
         if (!id) throw new Error(`usage: ${cmd} <approvalId> --as <human>`);
         if (cmd === "reject" && !values.comment) throw new Error("A rejection needs --comment explaining why");
-        const t = await p.orchestrator.decideApproval(id, requireHuman(p), cmd, values.comment);
+        const who = requireHuman(p);
+        let proof;
+        if (p.config.APPROVER_AUTH === "signed") {
+          const keyFile = values.key ?? process.env.APPROVER_KEY_FILE;
+          if (!keyFile) throw new Error("Signed approvals require --key <private.pem> or APPROVER_KEY_FILE");
+          proof = signDecision(readFileSync(keyFile, "utf8"), { approvalId: id, humanId: who, decision: cmd, payloadHash: p.gate.get(id).payloadHash, comment: values.comment, issuedAt: new Date().toISOString() });
+        }
+        const t = await p.orchestrator.decideApproval(id, who, cmd, values.comment, proof);
         console.log(`Approval ${id}: ${p.gate.get(id).status}. Task ${t.id}: ${t.status}`);
+        break;
+      }
+      case "revoke": {
+        if (!args[0] || !values.comment) throw new Error("usage: revoke <approvalId> --as <human> --comment '<reason>'");
+        const t = p.orchestrator.revokeApproval(args[0], requireHuman(p), values.comment);
+        console.log(`Approval ${args[0]} revoked. Task ${t.id}: ${t.status}`);
+        break;
+      }
+      case "keys": {
+        const [sub, humanId, pubFile] = args;
+        if (sub === "list") {
+          table(p.keys.list().map((k) => ({ human: k.humanId, fingerprint: k.fingerprint, registeredBy: k.registeredBy, registeredAt: k.registeredAt.slice(0, 19), revokedAt: k.revokedAt?.slice(0, 19) ?? "" })));
+        } else if (sub === "init" && humanId) {
+          if (!values.out) throw new Error("keys init requires --out <private.pem> (deliver this file to the approver only)");
+          if (existsSync(values.out)) throw new Error(`${values.out} already exists; refusing to overwrite a private key`);
+          const kp = generateApproverKeyPair();
+          const reg = p.keys.register(humanId, kp.publicKeyPem, requireHuman(p));
+          mkdirSync(dirname(values.out), { recursive: true });
+          writeFileSync(values.out, kp.privateKeyPem, { mode: 0o600 });
+          chmodSync(values.out, 0o600);
+          console.log(`Registered key for ${humanId}: ${reg.fingerprint}\nPrivate key written to ${values.out} (mode 600). Hand it to ${humanId} only; the platform keeps only the public key.`);
+        } else if (sub === "register" && humanId && pubFile) {
+          const reg = p.keys.register(humanId, readFileSync(pubFile, "utf8"), requireHuman(p));
+          console.log(`Registered key for ${humanId}: ${reg.fingerprint}`);
+        } else if (sub === "revoke" && humanId) {
+          console.log(`Revoked ${p.keys.revoke(humanId, requireHuman(p))} key(s) for ${humanId}`);
+        } else throw new Error("usage: keys list | keys init <humanId> --out <file> --as <operator> | keys register <humanId> <public.pem> --as <operator> | keys revoke <humanId> --as <human>");
         break;
       }
       case "escalations":

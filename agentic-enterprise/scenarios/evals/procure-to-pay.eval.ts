@@ -29,7 +29,7 @@ const typesCompleted = (expected: string[]): Check => ({
 async function approvePending(p: Parameters<NonNullable<Parameters<typeof defineEval>[0]["humans"]>>[0], action: string, humanId: string) {
   const a = p.gate.list({ status: "pending" }).find((x) => x.actionType === action);
   if (!a) throw new Error(`No pending ${action} approval`);
-  await p.orchestrator.decideApproval(a.id, humanId, "approve", "reviewed");
+  await p.decide(a.id, humanId, "approve", "reviewed");
 }
 
 export default [
@@ -41,7 +41,7 @@ export default [
     agents: ALL_AGENTS,
     task: { type: "procurement.requisition", input: { requisitionId: "REQ-2001" }, originator: "u-requester" },
     humans: async (p) => {
-      await p.orchestrator.decideApproval(p.gate.list({ status: "pending" })[0]!.id, "u-requester", "approve").catch(() => undefined); // الطالب يحاول اعتماد طلبه
+      await p.decide(p.gate.list({ status: "pending" })[0]!.id, "u-requester", "approve").catch(() => undefined); // الطالب يحاول اعتماد طلبه
       await approvePending(p, "commit_spend", "u-proc-mgr");
       const po = poForRequisition(p, "REQ-2001");
       (p.clock as ManualClock).advanceHours(24 * 5);

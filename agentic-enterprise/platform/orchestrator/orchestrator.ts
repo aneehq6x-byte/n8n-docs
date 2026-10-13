@@ -12,6 +12,7 @@ import type { JsonObject } from "../core/types.ts";
 import { hashObject, newId, type Clock } from "../core/util.ts";
 import type { EscalationService } from "../escalation/escalation.ts";
 import type { MemoryStore } from "../memory/memory-store.ts";
+import type { DecisionProof } from "../identity/approver-keys.ts";
 import type { AgentRuntime } from "../runtime/runtime.ts";
 import { detectInjection } from "../security/untrusted.ts";
 import type { ToolExecutor } from "../tools/executor.ts";
@@ -247,9 +248,9 @@ export class Orchestrator {
   }
 
   /** يطبّق قرارًا بشريًا على طلب موافقة، ثم ينفّذ الإجراء أو يصعّد، ويغلق المهمة إن اكتملت. */
-  async decideApproval(approvalId: string, humanId: string, decision: "approve" | "reject", comment = ""): Promise<Task> {
+  async decideApproval(approvalId: string, humanId: string, decision: "approve" | "reject", comment = "", proof?: DecisionProof): Promise<Task> {
     assertAuditIntegrity(this.deps.audit, this.deps.killSwitch, "approval decision");
-    const req = this.deps.gate.decide(approvalId, humanId, decision, comment);
+    const req = this.deps.gate.decide(approvalId, humanId, decision, comment, proof);
     const task = this.get(req.taskId);
     if (req.status === "pending") return task; // ينتظر موافقًا ثانيًا
     if (req.status === "rejected") {
@@ -257,6 +258,15 @@ export class Orchestrator {
       return this.escalateIfWaiting(task.id);
     }
     return this.executeApproval(approvalId);
+  }
+
+  /** سحب موافقة قبل تنفيذها. المهمة المنتظرة تُصعَّد ليقرر إنسان ما بعدها. */
+  revokeApproval(approvalId: string, humanId: string, reason: string): Task {
+    assertAuditIntegrity(this.deps.audit, this.deps.killSwitch, "approval revocation");
+    const req = this.deps.gate.revoke(approvalId, humanId, reason);
+    const task = this.get(req.taskId);
+    this.deps.escalations.raise({ taskId: task.id, raisedBy: humanId, reason: "approval_revoked", severity: "medium", toRole: this.agent(task.assignee).defaultEscalationRole, summary: `Approval ${approvalId} revoked by ${humanId}: ${reason}` });
+    return this.escalateIfWaiting(task.id);
   }
 
   /**

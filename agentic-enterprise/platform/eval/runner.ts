@@ -26,6 +26,7 @@ export async function runScenario(s: EvalScenario, mode: EvalMode): Promise<Scen
     clock: new ManualClock(),
     isolated: true,
     anchor: new MemoryAnchor(randomBytes(32)),
+    devKeys: true,
     runtime:
       mode === "live"
         ? new ClaudeAgentRuntime({ model: process.env.AGENT_MODEL ?? "claude-opus-5-5", maxTurns: 20, maxBudgetUsd: 2 })

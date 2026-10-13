@@ -34,7 +34,7 @@ export default [
     task: { type: PO_TASK, input: { requisitionId: "REQ-2005", supplierId: "sup-004" }, originator: "u-requester" },
     humans: async (p) => {
       const [a] = p.gate.list({ status: "pending" });
-      await p.orchestrator.decideApproval(a!.id, "u-proc-mgr", "approve", "within budget");
+      await p.decide(a!.id, "u-proc-mgr", "approve", "within budget");
     },
     expect: [
       approvalRequested("commit_spend", { required: 1, status: "executed" }),
@@ -60,9 +60,9 @@ export default [
     task: { type: PO_TASK, input: { requisitionId: "REQ-2006", supplierId: "sup-002" }, originator: "u-requester" },
     humans: async (p) => {
       const [a] = p.gate.list({ status: "pending" });
-      await p.orchestrator.decideApproval(a!.id, "u-proc-mgr", "approve");
+      await p.decide(a!.id, "u-proc-mgr", "approve");
       afterFirstApproval = { status: p.gate.get(a!.id).status, writes: p.connectors.writes.filter((w) => w.method === "createPurchaseOrder").length };
-      await p.orchestrator.decideApproval(a!.id, "u-cfo", "approve");
+      await p.decide(a!.id, "u-cfo", "approve");
     },
     expect: [
       { name: "still pending and nothing issued after first approval", check: () => (afterFirstApproval?.status === "pending" && afterFirstApproval.writes === 0) || JSON.stringify(afterFirstApproval) },

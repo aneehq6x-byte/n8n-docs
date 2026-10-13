@@ -10,7 +10,7 @@
 | 1 | تحليل المجالات: [`docs/domains.md`](docs/domains.md) | ✅ |
 | 2 | البنية المشتركة: [`platform/`](platform/README.md) | ✅ |
 | 3 | الوكلاء: [المشتريات](agents/procurement/README.md)، [المالية](agents/finance/README.md)، [الامتثال](agents/compliance/README.md) | ✅ |
-| 4 | التكامل والتشغيل: [`scenarios/`](scenarios/evals/procure-to-pay.eval.ts)، [`ops/`](ops/cli.ts)، [`docs/runbook.md`](docs/runbook.md) | قيد المراجعة |
+| 4 | التكامل والتشغيل: [`scenarios/`](scenarios/evals/procure-to-pay.eval.ts)، [`ops/`](ops/cli.ts)، [`docs/operations/RUNBOOK.md`](docs/operations/RUNBOOK.md) | قيد المراجعة |
 | 5 | التقرير النهائي | لم تبدأ |
 
 ## الوكلاء
@@ -38,7 +38,7 @@ npm run ops -- status
 npm run eval -- --live   # الوضع الحي بـ Claude، يتطلب ANTHROPIC_API_KEY
 ```
 
-المتطلبات: Node 22.13 أو أحدث، لأن المنصة تستخدم `node:sqlite` المدمج. التشغيل والمراقبة والإيقاف الطارئ في [`docs/runbook.md`](docs/runbook.md).
+المتطلبات: Node 22.13 أو أحدث، لأن المنصة تستخدم `node:sqlite` المدمج. التشغيل والمراقبة والإيقاف الطارئ في [`docs/operations/RUNBOOK.md`](docs/operations/RUNBOOK.md).
 
 ## هيكل المشروع
 
