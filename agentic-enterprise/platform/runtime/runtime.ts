@@ -12,6 +12,8 @@ export interface RunRequest {
   tools: ToolGateway;
   /** الأدوات كما تُعرض للنموذج: أدوات الوكيل مع الأدوات المدمجة. */
   toolList: AgentDefinition["tools"];
+  /** يُطلق عند انتهاء المهلة. المنفّذ الحي يمرره إلى Agent SDK لإلغاء الطلب فعليًا. */
+  signal?: AbortSignal;
 }
 
 export interface RunResult {

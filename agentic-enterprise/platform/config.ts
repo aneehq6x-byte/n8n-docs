@@ -20,6 +20,7 @@ const ConfigSchema = z.object({
   DUAL_APPROVAL_THRESHOLD_USD: z.coerce.number().positive().default(50_000),
   AGENT_MAX_TURNS: z.coerce.number().int().positive().default(20),
   AGENT_MAX_BUDGET_USD: z.coerce.number().positive().default(2),
+  AGENT_TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
 });
 
 export type PlatformConfig = z.infer<typeof ConfigSchema>;

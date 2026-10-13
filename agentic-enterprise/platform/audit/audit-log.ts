@@ -1,5 +1,5 @@
 import type { Database } from "../core/db.ts";
-import { parseJson } from "../core/db.ts";
+import { parseJson, transaction } from "../core/db.ts";
 import { PlatformError } from "../core/errors.ts";
 import type { Actor, JsonObject } from "../core/types.ts";
 import { canonicalJson, sha256, type Clock } from "../core/util.ts";
@@ -70,6 +70,11 @@ export class AuditLog {
   }
 
   append(input: AuditEntryInput): AuditEntry {
+    // قراءة آخر سجل ثم الإدراج داخل معاملة واحدة: بدونها يحصل كاتبان متزامنان على seq نفسه ويُفقد أحدهما (R1).
+    return transaction(this.db, () => this.appendUnsafe(input));
+  }
+
+  private appendUnsafe(input: AuditEntryInput): AuditEntry {
     const last = this.db.prepare("SELECT seq, hash FROM audit_log ORDER BY seq DESC LIMIT 1").get() as
       | { seq: number; hash: string }
       | undefined;

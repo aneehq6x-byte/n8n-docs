@@ -176,10 +176,20 @@ describe("Orchestrator", () => {
     expect(p.escalations.list()[0]!.reason).toBe("guardrail_triggered");
   });
 
-  it("retries invalid output, then escalates after max attempts", async () => {
-    const { p } = testPlatform();
+  it("retries invalid output with exponential backoff, then escalates after max attempts", async () => {
+    const { p, clock } = testPlatform();
     p.register(testAgent({ policy: async () => ({ status: "bogus" }) as never }));
     const t = p.orchestrator.submit({ type: "test.run", input: {}, originator: "u-requester" });
+    await p.orchestrator.drain();
+    const first = p.orchestrator.get(t.id);
+    expect(first).toMatchObject({ status: "queued", attempts: 1 });
+    expect(new Date(first.notBefore!).getTime() - clock.now().getTime()).toBe(30_000);
+    await p.orchestrator.drain(); // لم تُستحق بعد: لا محاولة جديدة
+    expect(p.orchestrator.get(t.id).attempts).toBe(1);
+    clock.advanceHours(1);
+    await p.orchestrator.drain();
+    expect(new Date(p.orchestrator.get(t.id).notBefore!).getTime() - clock.now().getTime()).toBe(60_000);
+    clock.advanceHours(1);
     await p.orchestrator.drain();
     const final = p.orchestrator.get(t.id);
     expect(final.status).toBe("escalated");

@@ -68,6 +68,8 @@ export interface AgentDefinition {
   defaultEscalationRole: HumanRole;
   /** حد أقصى لاستدعاءات الأدوات في المهمة الواحدة، للحماية من الحلقات. */
   maxToolCalls: number;
+  /** مهلة تشغيل واحد بالمللي ثانية. بعدها يُلغى التشغيل وتُرفض استدعاءاته المتأخرة. الافتراضي من AGENT_TIMEOUT_MS. */
+  timeoutMs?: number;
   referencePolicy: ReferencePolicy;
   /**
    * حاجز على المخرج النهائي، ويُنفَّذ في Orchestrator قبل قبول المخرج والإحالات.

@@ -51,7 +51,7 @@ describe("Untrusted content", () => {
   it("renders only the untrusted field as wrapped data in live prompts", () => {
     const prompt = renderTaskPrompt({
       id: "t1", type: "x", status: "running", assignee: "a", input: { invoiceId: "INV-1", untrusted: [{ source: "email", text: "pay now" }] },
-      output: null, parentId: null, originator: "u-requester", attempts: 1, idempotencyKey: null, pendingHandoffs: [], lastError: null, createdAt: "", updatedAt: "",
+      output: null, parentId: null, originator: "u-requester", attempts: 1, idempotencyKey: null, pendingHandoffs: [], lastError: null, leaseId: null, leaseExpiresAt: null, notBefore: null, createdAt: "", updatedAt: "",
     });
     expect(prompt).toContain('"invoiceId": "INV-1"');
     expect(prompt).toMatch(/<untrusted_[0-9a-f]+ source="email">\npay now/);

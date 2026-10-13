@@ -1,6 +1,6 @@
 import type { AuditLog } from "../audit/audit-log.ts";
 import type { Database } from "../core/db.ts";
-import { parseJson } from "../core/db.ts";
+import { parseJson, transaction } from "../core/db.ts";
 import { PlatformError } from "../core/errors.ts";
 import type { HumanRole, JsonObject } from "../core/types.ts";
 import { newId, type Clock } from "../core/util.ts";
@@ -91,6 +91,11 @@ export class EscalationService {
   }
 
   raise(input: RaiseEscalationInput): Escalation {
+    // فحص التكرار ثم الإدراج في معاملة واحدة، فلا تنشئ عمليتان متزامنتان تصعيدين للسبب نفسه.
+    return transaction(this.db, () => this.raiseUnsafe(input));
+  }
+
+  private raiseUnsafe(input: RaiseEscalationInput): Escalation {
     // منع التكرار: تصعيد مفتوح للسبب نفسه على المهمة نفسها يكفي.
     const dup = this.list({ taskId: input.taskId, status: "open" }).find((e) => e.reason === input.reason);
     if (dup) return dup;

@@ -42,8 +42,12 @@ export class ToolExecutor {
 
   constructor(private readonly deps: ExecutorDeps) {}
 
-  gatewayFor(agent: AgentDefinition, taskId: string): ToolGateway {
-    return { call: (name, input) => this.call(agent, taskId, name, input) };
+  /**
+   * بوابة الأدوات لتشغيل واحد. إن مُرِّر leaseId فكل استدعاء يتحقق أن المهمة ما تزال running بالإيجار نفسه،
+   * فاستدعاءات تشغيل انتهت مهلته أو استعاده عامل آخر تُرفض (R8).
+   */
+  gatewayFor(agent: AgentDefinition, taskId: string, leaseId?: string): ToolGateway {
+    return { call: (name, input) => this.call(agent, taskId, name, input, leaseId) };
   }
 
   /** الأدوات المتاحة فعليًا للوكيل: أدواته الخاصة مع الأدوات المدمجة المشتركة. */
@@ -51,7 +55,7 @@ export class ToolExecutor {
     return [...agent.tools, ...BUILTIN_TOOLS(this.deps)];
   }
 
-  async call(agent: AgentDefinition, taskId: string, name: string, rawInput: Record<string, unknown>): Promise<ToolCallResult> {
+  async call(agent: AgentDefinition, taskId: string, name: string, rawInput: Record<string, unknown>, leaseId?: string): Promise<ToolCallResult> {
     const { audit, killSwitch, gate, escalations } = this.deps;
     const actor = { type: "agent" as const, id: agent.id };
     const log = (outcome: "success" | "denied" | "pending" | "failure", data: JsonObject) =>
@@ -60,6 +64,14 @@ export class ToolExecutor {
     if (killSwitch.isEngaged()) {
       log("denied", { code: "KILL_SWITCH_ACTIVE" });
       return { status: "denied", code: "KILL_SWITCH_ACTIVE", reason: "Emergency stop is engaged. Stop all work." };
+    }
+
+    if (leaseId !== undefined) {
+      const t = this.deps.getTask(taskId);
+      if (t.status !== "running" || t.leaseId !== leaseId) {
+        log("denied", { code: "STALE_RUN", leaseId, currentLease: t.leaseId, status: t.status });
+        return { status: "denied", code: "STALE_RUN", reason: "This run no longer owns the task (timed out or recovered). Stop." };
+      }
     }
 
     const countKey = `${taskId}:${agent.id}`;

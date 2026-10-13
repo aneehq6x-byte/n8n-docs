@@ -50,9 +50,12 @@ export class ClaudeAgentRuntime implements AgentRuntime {
     let costUsd = 0;
     let turns = 0;
 
+    const abortController = new AbortController();
+    req.signal?.addEventListener("abort", () => abortController.abort(), { once: true });
     for await (const msg of query({
       prompt: renderTaskPrompt(req.task),
       options: {
+        abortController,
         model: this.opts.model,
         systemPrompt: req.agent.systemPrompt,
         tools: [],

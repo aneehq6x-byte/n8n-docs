@@ -53,6 +53,12 @@ export interface Task {
   idempotencyKey: string | null;
   pendingHandoffs: Handoff[];
   lastError: string | null;
+  /** رمز الإيجار للتشغيل الحالي. استدعاءات الأدوات تحمله، فتُرفض استدعاءات أي تشغيل متروك ("زومبي"). */
+  leaseId: string | null;
+  /** بعد هذا الوقت يُعد العامل ميتًا، وتُعاد المهمة للطابور (recoverExpiredLeases). */
+  leaseExpiresAt: string | null;
+  /** لا تُشغَّل المهمة قبل هذا الوقت (تأخير متصاعد بعد الفشل). */
+  notBefore: string | null;
   createdAt: string;
   updatedAt: string;
 }

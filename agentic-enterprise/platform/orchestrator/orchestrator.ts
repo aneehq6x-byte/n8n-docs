@@ -3,7 +3,7 @@ import type { ApprovalGate } from "../approval/approval-gate.ts";
 import type { AuditLog } from "../audit/audit-log.ts";
 import type { Connectors } from "../connectors/types.ts";
 import type { Database } from "../core/db.ts";
-import { parseJson } from "../core/db.ts";
+import { ensureColumns, parseJson, transaction } from "../core/db.ts";
 import type { HumanDirectory } from "../core/directory.ts";
 import { PlatformError } from "../core/errors.ts";
 import type { KillSwitch } from "../core/kill-switch.ts";
@@ -49,7 +49,16 @@ export interface OrchestratorDeps {
   connectors: Connectors;
   runtime: AgentRuntime;
   maxAttempts: number;
+  /** المهلة الافتراضية لتشغيل وكيل واحد، إن لم يحدد الوكيل مهلته. */
+  defaultTimeoutMs: number;
 }
+
+/** التأخير المتصاعد بعد الفشل: 30 ثانية ثم 60 ثم 120، بحد أقصى 15 دقيقة. */
+export function backoffMs(attempts: number): number {
+  return Math.min(30_000 * 2 ** Math.max(0, attempts - 1), 15 * 60_000);
+}
+
+class LeaseLost extends Error {}
 
 export class Orchestrator {
   private readonly agents = new Map<string, AgentDefinition>();
@@ -66,6 +75,7 @@ export class Orchestrator {
       CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
       CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_id);
     `);
+    ensureColumns(deps.db, "tasks", { lease_id: "TEXT", lease_expires_at: "TEXT", not_before: "TEXT" });
   }
 
   register(agent: AgentDefinition): void {
@@ -89,6 +99,10 @@ export class Orchestrator {
   }
 
   submit(input: SubmitTaskInput): Task {
+    return transaction(this.deps.db, () => this.submitUnsafe(input));
+  }
+
+  private submitUnsafe(input: SubmitTaskInput): Task {
     if (input.idempotencyKey) {
       const existing = this.deps.db.prepare("SELECT * FROM tasks WHERE idempotency_key = ?").get(input.idempotencyKey);
       if (existing) return rowToTask(existing as Record<string, unknown>);
@@ -100,10 +114,14 @@ export class Orchestrator {
     const task: Task = {
       id: newId("task"), type: input.type, status: "queued", assignee, input: input.input, output: null,
       parentId: input.parentId ?? null, originator: input.originator, attempts: 0,
-      idempotencyKey: input.idempotencyKey ?? null, pendingHandoffs: [], lastError: null, createdAt: now, updatedAt: now,
+      idempotencyKey: input.idempotencyKey ?? null, pendingHandoffs: [], lastError: null,
+      leaseId: null, leaseExpiresAt: null, notBefore: null, createdAt: now, updatedAt: now,
     };
     this.deps.db
-      .prepare(`INSERT INTO tasks VALUES (?, ?, ?, ?, ?, NULL, ?, ?, 0, ?, '[]', NULL, ?, ?)`)
+      .prepare(
+        `INSERT INTO tasks (id, type, status, assignee, input, output, parent_id, originator, attempts, idempotency_key, pending_handoffs, last_error, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, NULL, ?, ?, 0, ?, '[]', NULL, ?, ?)`,
+      )
       .run(task.id, task.type, task.status, task.assignee, JSON.stringify(task.input), task.parentId, task.originator, task.idempotencyKey, now, now);
     this.deps.audit.append({
       actor: { type: input.parentId ? "agent" : "human", id: input.parentId ? this.get(input.parentId).assignee : input.originator },
@@ -128,22 +146,61 @@ export class Orchestrator {
     return this.deps.db.prepare(`SELECT * FROM tasks ${where} ORDER BY created_at, rowid`).all(...params).map((r) => rowToTask(r as Record<string, unknown>));
   }
 
-  /** يشغّل كل المهام في الطابور حتى يفرغ، بما فيها المهام الناتجة عن الإحالات. */
+  /**
+   * يشغّل المهام المستحقة في الطابور حتى يفرغ، بما فيها المهام الناتجة عن الإحالات.
+   * آمن للتشغيل من عدة عمليات في الوقت نفسه: كل مهمة يطالب بها عامل واحد فقط (claim ذري).
+   */
   async drain(maxTasks = 100): Promise<Task[]> {
+    this.recoverExpiredLeases();
     const done: Task[] = [];
+    const skipped = new Set<string>();
     for (let i = 0; i < maxTasks; i++) {
-      const next = this.list({ status: "queued" })[0];
-      if (!next || this.deps.killSwitch.isEngaged()) break;
-      done.push(await this.run(next.id));
+      if (this.deps.killSwitch.isEngaged()) break;
+      const now = this.deps.clock.now().toISOString();
+      const next = this.list({ status: "queued" }).find((t) => !skipped.has(t.id) && (!t.notBefore || t.notBefore <= now));
+      if (!next) break;
+      const result = await this.run(next.id);
+      // لم يتغير شيء: سبقنا عامل آخر إليها. نتخطاها في هذه الدورة.
+      if (result.updatedAt === next.updatedAt && result.status === next.status) skipped.add(next.id);
+      else done.push(result);
     }
     return done;
   }
 
+  /**
+   * مطالبة ذرية بمهمة: داخل معاملة IMMEDIATE، تنتقل من queued إلى running فقط إن كانت ما تزال queued
+   * ومستحقة. تعيد null إن سبقها عامل آخر. هذا يمنع التشغيل المكرر (R4).
+   */
+  claim(taskId: string, leaseMs: number): Task | null {
+    return transaction(this.deps.db, () => {
+      const task = this.get(taskId);
+      const now = this.deps.clock.now();
+      if (task.status !== "queued" || (task.notBefore && task.notBefore > now.toISOString())) return null;
+      return this.transition(task, "running", { attempts: task.attempts + 1 }, { id: newId("lease"), expiresAt: new Date(now.getTime() + leaseMs).toISOString() });
+    });
+  }
+
+  /**
+   * يعيد للطابور المهام التي انتهى إيجارها وهي running، أي التي مات عاملها أو تجاوز مهلته (R3).
+   * تُحسب المحاولة، وبعد الحد الأقصى تُصعَّد بدل إعادة المحاولة.
+   */
+  recoverExpiredLeases(): Task[] {
+    const now = this.deps.clock.now().toISOString();
+    const stale = this.list({ status: "running" }).filter((t) => t.leaseExpiresAt && t.leaseExpiresAt < now);
+    return stale.map((t) => {
+      this.deps.audit.append({ actor: { type: "system", id: "orchestrator" }, action: "task.lease_expired", target: t.id, taskId: t.id, outcome: "failure", data: { leaseId: t.leaseId, expiredAt: t.leaseExpiresAt, attempts: t.attempts } });
+      return this.handleRunError(t.id, this.agent(t.assignee), new Error(`Lease expired at ${t.leaseExpiresAt} (worker crash or timeout)`), t.leaseId);
+    });
+  }
+
   async run(taskId: string): Promise<Task> {
     this.deps.killSwitch.assertNotEngaged();
-    const task = this.get(taskId);
-    const agent = this.agent(task.assignee);
-    this.transition(task, "running", { attempts: task.attempts + 1 });
+    const agent = this.agent(this.get(taskId).assignee);
+    const timeoutMs = agent.timeoutMs ?? this.deps.defaultTimeoutMs;
+    const claimed = this.claim(taskId, timeoutMs + 60_000);
+    if (!claimed) return this.get(taskId);
+    const task = claimed;
+    const leaseId = task.leaseId!;
 
     // فحص المحتوى الخارجي قبل أن يراه أي نموذج. الاشتباه يُسجَّل ويُمرَّر كإشارة للوكيل وللحواجز.
     const injection = scanUntrusted(task.input);
@@ -152,22 +209,38 @@ export class Orchestrator {
     }
 
     const executor = this.deps.executor();
+    const abort = new AbortController();
+    let timer: NodeJS.Timeout | undefined;
     let outcome: AgentOutcome;
     try {
-      const result = await this.deps.runtime.run({
-        agent, task: this.get(taskId), tools: executor.gatewayFor(agent, taskId), toolList: executor.toolsFor(agent),
-      });
+      const result = await Promise.race([
+        this.deps.runtime.run({ agent, task, tools: executor.gatewayFor(agent, taskId, leaseId), toolList: executor.toolsFor(agent), signal: abort.signal }),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => (abort.abort(), reject(new Error(`Agent run exceeded timeout of ${timeoutMs} ms`))), timeoutMs);
+        }),
+      ]);
       const parsed = agent.outputSchema.safeParse(result.outcome);
       if (!parsed.success) throw new Error(`Invalid agent output: ${parsed.error.message.slice(0, 500)}`);
       outcome = parsed.data;
       if (result.usage) this.deps.audit.append({ actor: { type: "agent", id: agent.id }, action: "agent.usage", taskId, outcome: "info", data: result.usage as unknown as JsonObject });
     } catch (err) {
-      return this.handleRunError(taskId, agent, err);
+      return this.handleRunError(taskId, agent, err, leaseId);
+    } finally {
+      clearTimeout(timer);
     }
 
     const current = this.get(taskId);
-    if (current.status !== "running") return current; // أوقفها شيء آخر أثناء التشغيل
-    return this.settle(current, agent, outcome);
+    // أوقفها شيء آخر أثناء التشغيل، أو انتهى الإيجار واستعادها عامل آخر: نتيجة هذا التشغيل تُهمل.
+    if (current.status !== "running" || current.leaseId !== leaseId) {
+      this.deps.audit.append({ actor: { type: "system", id: "orchestrator" }, action: "task.result_discarded", taskId, outcome: "denied", data: { leaseId, currentStatus: current.status } });
+      return current;
+    }
+    try {
+      return transaction(this.deps.db, () => this.settle(current, agent, outcome));
+    } catch (err) {
+      if (err instanceof LeaseLost) return this.get(taskId);
+      throw err;
+    }
   }
 
   /** يطبّق قرارًا بشريًا على طلب موافقة، ثم ينفّذ الإجراء أو يصعّد، ويغلق المهمة إن اكتملت. */
@@ -281,29 +354,57 @@ export class Orchestrator {
     return this.submit({ type: h.taskType, input: h.input, originator: parent.originator, parentId: parent.id, idempotencyKey: `${parent.id}:${h.taskType}:${hashObject(h.input).slice(0, 16)}` });
   }
 
-  private handleRunError(taskId: string, agent: AgentDefinition, err: unknown): Task {
+  private handleRunError(taskId: string, agent: AgentDefinition, err: unknown, leaseId: string | null): Task {
     const message = err instanceof Error ? err.message : String(err);
     const task = this.get(taskId);
-    this.deps.audit.append({ actor: { type: "system", id: "orchestrator" }, action: "task.run_error", taskId, outcome: "failure", data: { error: message } });
-    if (this.deps.killSwitch.isEngaged()) return this.transition(task, "failed", { lastError: message });
-    if (task.attempts >= this.deps.maxAttempts) {
-      this.deps.escalations.raise({ taskId, raisedBy: "orchestrator", reason: "max_attempts_exceeded", severity: "high", toRole: agent.defaultEscalationRole, summary: `Task failed ${task.attempts} times: ${message}` });
-      return this.transition(task, "escalated", { lastError: message });
+    if (task.status !== "running" || task.leaseId !== leaseId) return task; // الإيجار لم يعد لنا
+    this.deps.audit.append({ actor: { type: "system", id: "orchestrator" }, action: "task.run_error", taskId, outcome: "failure", data: { error: message, attempts: task.attempts } });
+    try {
+      if (this.deps.killSwitch.isEngaged()) return this.transition(task, "failed", { lastError: message });
+      if (task.attempts >= this.deps.maxAttempts) {
+        this.deps.escalations.raise({ taskId, raisedBy: "orchestrator", reason: "max_attempts_exceeded", severity: "high", toRole: agent.defaultEscalationRole, summary: `Task failed ${task.attempts} times: ${message}` });
+        return this.transition(task, "escalated", { lastError: message });
+      }
+      const notBefore = new Date(this.deps.clock.now().getTime() + backoffMs(task.attempts)).toISOString();
+      return this.transition(task, "queued", { lastError: message, notBefore });
+    } catch (e) {
+      if (e instanceof LeaseLost) return this.get(taskId);
+      throw e;
     }
-    return this.transition(task, "queued", { lastError: message });
   }
 
-  private transition(task: Task, to: TaskStatus, patch: Partial<Pick<Task, "output" | "attempts" | "pendingHandoffs" | "lastError">> = {}): Task {
+  /**
+   * انتقال حالة ذري ومتحقق منه (compare-and-set): يُطبَّق فقط إن كانت الحالة والإيجار في القاعدة
+   * ما يزالان كما قرأهما المستدعي. وإلا يرمي LeaseLost، فلا يكتب عاملان فوق بعضهما.
+   */
+  private transition(
+    task: Task,
+    to: TaskStatus,
+    patch: Partial<Pick<Task, "output" | "attempts" | "pendingHandoffs" | "lastError" | "notBefore">> = {},
+    lease: { id: string; expiresAt: string } | null = null,
+  ): Task {
     if (!TRANSITIONS[task.status].includes(to))
       throw new PlatformError("INVALID_TRANSITION", `Task ${task.id}: ${task.status} → ${to} is not allowed`);
-    const now = this.deps.clock.now().toISOString();
-    const next: Task = { ...task, ...patch, status: to, updatedAt: now };
-    this.deps.db
-      .prepare("UPDATE tasks SET status = ?, output = ?, attempts = ?, pending_handoffs = ?, last_error = ?, updated_at = ? WHERE id = ?")
-      .run(to, next.output ? JSON.stringify(next.output) : null, next.attempts, JSON.stringify(next.pendingHandoffs), next.lastError, now, task.id);
-    this.deps.audit.append({ actor: { type: "system", id: "orchestrator" }, action: "task.transition", target: task.id, taskId: task.id, outcome: "info", data: { from: task.status, to } });
-    if (TERMINAL.includes(to)) this.deps.memory.forgetTask(task.id);
-    return next;
+    return transaction(this.deps.db, () => {
+      const now = this.deps.clock.now().toISOString();
+      const next: Task = {
+        ...task, ...patch, status: to, updatedAt: now,
+        leaseId: to === "running" ? (lease?.id ?? null) : null,
+        leaseExpiresAt: to === "running" ? (lease?.expiresAt ?? null) : null,
+        notBefore: to === "queued" ? (patch.notBefore ?? null) : null,
+      };
+      const res = this.deps.db
+        .prepare(
+          `UPDATE tasks SET status = ?, output = ?, attempts = ?, pending_handoffs = ?, last_error = ?, lease_id = ?, lease_expires_at = ?, not_before = ?, updated_at = ?
+           WHERE id = ? AND status = ? AND lease_id IS ?`,
+        )
+        .run(to, next.output ? JSON.stringify(next.output) : null, next.attempts, JSON.stringify(next.pendingHandoffs), next.lastError,
+          next.leaseId, next.leaseExpiresAt, next.notBefore, now, task.id, task.status, task.leaseId);
+      if (Number(res.changes) !== 1) throw new LeaseLost(`Task ${task.id} changed concurrently (expected ${task.status}/${task.leaseId})`);
+      this.deps.audit.append({ actor: { type: "system", id: "orchestrator" }, action: "task.transition", target: task.id, taskId: task.id, outcome: "info", data: { from: task.status, to, ...(next.leaseId ? { leaseId: next.leaseId } : {}) } });
+      if (TERMINAL.includes(to)) this.deps.memory.forgetTask(task.id);
+      return next;
+    });
   }
 }
 
@@ -318,6 +419,8 @@ function rowToTask(r: Record<string, unknown>): Task {
     input: parseJson<JsonObject>(r.input), output: r.output ? parseJson<JsonObject>(r.output) : null,
     parentId: (r.parent_id as string | null) ?? null, originator: String(r.originator), attempts: Number(r.attempts),
     idempotencyKey: (r.idempotency_key as string | null) ?? null, pendingHandoffs: parseJson<Handoff[]>(r.pending_handoffs),
-    lastError: (r.last_error as string | null) ?? null, createdAt: String(r.created_at), updatedAt: String(r.updated_at),
+    lastError: (r.last_error as string | null) ?? null,
+    leaseId: (r.lease_id as string | null) ?? null, leaseExpiresAt: (r.lease_expires_at as string | null) ?? null, notBefore: (r.not_before as string | null) ?? null,
+    createdAt: String(r.created_at), updatedAt: String(r.updated_at),
   };
 }
