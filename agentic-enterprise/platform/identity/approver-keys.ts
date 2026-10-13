@@ -4,7 +4,7 @@ import type { Database } from "../core/db.ts";
 import { transaction } from "../core/db.ts";
 import type { HumanDirectory } from "../core/directory.ts";
 import { PlatformError } from "../core/errors.ts";
-import { canonicalJson, type Clock } from "../core/util.ts";
+import { canonicalJson, hashObject, type Clock } from "../core/util.ts";
 
 /**
  * هوية الموافق ومصدر القرار (approval provenance) — إصلاح R7.
@@ -58,6 +58,36 @@ export function generateApproverKeyPair(): { publicKeyPem: string; privateKeyPem
     publicKeyPem: publicKey.export({ type: "spki", format: "pem" }).toString(),
     privateKeyPem: privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
   };
+}
+
+/**
+ * إثبات موقّع لقرار بشري غير الموافقة (T17): تبرئة تطابق عقوبات، وحل تصعيد، ورفع إيقاف طارئ، واستئناف.
+ * المبدأ: الإيقاف سهل دائمًا ولا يحتاج توقيعًا (fail-safe)، وكل ما يفتح أو يستأنف عملية يحتاج توقيعًا.
+ * التوقيع يغطي الغرض (purpose) والموضوع (subject) وhash التفاصيل، فلا يُعاد استخدامه لغرض أو موضوع آخر.
+ */
+export const HUMAN_ACTIONS = ["compliance.resolve_match/v1", "task.resolve_escalation/v1", "ops.release_stop/v1", "ops.resume_approved/v1"] as const;
+export type HumanActionPurpose = (typeof HUMAN_ACTIONS)[number];
+
+export interface HumanActionProof {
+  purpose: HumanActionPurpose;
+  humanId: string;
+  subject: string;
+  detailsHash: string;
+  issuedAt: string;
+  signature: string;
+}
+
+export type UnsignedAction = Omit<HumanActionProof, "signature">;
+
+function actionMessage(a: UnsignedAction): Buffer {
+  return Buffer.from(canonicalJson({ kind: "human-action", ...a }));
+}
+
+export function signAction(privateKey: KeyObject | string, a: Omit<UnsignedAction, "detailsHash"> & { details: unknown }): HumanActionProof {
+  const key = typeof privateKey === "string" ? createPrivateKey(privateKey) : privateKey;
+  const { details, ...rest } = a;
+  const unsigned: UnsignedAction = { ...rest, detailsHash: hashObject(details) };
+  return { ...unsigned, signature: sign(null, actionMessage(unsigned), key).toString("base64") };
 }
 
 export interface RegisteredKey {
@@ -151,6 +181,37 @@ export class ApproverKeyRegistry {
 }
 
 /**
+ * التحقق من قرار بشري موقّع (غير الموافقة). يعيد بصمة المفتاح.
+ */
+export function verifyHumanAction(
+  registry: ApproverKeyRegistry,
+  clock: Clock,
+  proof: HumanActionProof | undefined,
+  expected: { purpose: HumanActionPurpose; humanId: string; subject: string; details: unknown },
+): string {
+  const fail = (why: string): never => {
+    throw new PlatformError("AUTHENTICATION_FAILED", `${expected.purpose} signature rejected: ${why}`);
+  };
+  if (!proof) return fail("missing signed proof");
+  if (proof.purpose !== expected.purpose) fail("purpose mismatch");
+  if (proof.humanId !== expected.humanId) fail("humanId mismatch");
+  if (proof.subject !== expected.subject) fail("subject mismatch");
+  if (proof.detailsHash !== hashObject(expected.details)) fail("details do not match what was signed");
+  const skew = Math.abs(clock.now().getTime() - new Date(proof.issuedAt).getTime());
+  if (!Number.isFinite(skew) || skew > MAX_CLOCK_SKEW_MS) fail("issuedAt outside the allowed window");
+  const key = registry.activeKey(proof.humanId) ?? fail(`no active key registered for ${proof.humanId}`);
+  const { signature, ...unsigned } = proof;
+  let ok = false;
+  try {
+    ok = verify(null, actionMessage(unsigned), createPublicKey(key.publicKeyPem), Buffer.from(signature, "base64"));
+  } catch {
+    ok = false;
+  }
+  if (!ok) fail("invalid signature");
+  return key.fingerprint;
+}
+
+/**
  * موقِّع للتطوير والاختبار: يولّد مفاتيح لكل البشر في الذاكرة ويسجّل مفاتيحها العامة.
  * لا يُستخدم في الإنتاج، حيث يحمل كل موافق مفتاحه الخاص على جهازه أو في جهاز أمان.
  */
@@ -164,8 +225,14 @@ export class DevSigner {
     }
   }
   sign(d: UnsignedDecision): DecisionProof {
-    const k = this.keys.get(d.humanId);
-    if (!k) throw new Error(`DevSigner has no key for ${d.humanId}`);
-    return signDecision(k, d);
+    return signDecision(this.key(d.humanId), d);
+  }
+  signAction(a: Omit<UnsignedAction, "detailsHash"> & { details: unknown }): HumanActionProof {
+    return signAction(this.key(a.humanId), a);
+  }
+  private key(humanId: string): KeyObject {
+    const k = this.keys.get(humanId);
+    if (!k) throw new Error(`DevSigner has no key for ${humanId}`);
+    return k;
   }
 }

@@ -94,7 +94,7 @@ describe("approval lifecycle hardening", () => {
     expect(p.gate.get(approval.id).status).toBe("approved");
     expect(p.orchestrator.revokeApproval(approval.id, "u-cs-sup", "recipient no longer a customer").status).toBe("escalated");
     p.killSwitch.release();
-    expect(await p.orchestrator.executePendingApproved()).toEqual([]);
+    expect(await p.resume("u-ops")).toEqual([]);
     expect(p.connectors.email.outbox()).toHaveLength(0);
     expect(code(() => p.gate.issueGrant(approval.id))).toBe("APPROVAL_INVALID");
     expect(p.escalations.list({ taskId: task.id })[0]!.reason).toBe("approval_revoked");

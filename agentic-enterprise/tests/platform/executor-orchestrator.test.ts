@@ -70,9 +70,9 @@ describe("ToolExecutor", () => {
     const [a] = p.gate.list({ status: "pending" });
     expect((await p.decide(a!.id, "u-cs-sup", "approve")).status).toBe("awaiting_approval");
     expect(p.connectors.email.outbox()).toHaveLength(0);
-    await expect(p.orchestrator.executePendingApproved()).rejects.toThrow(/Emergency stop/);
+    await expect(p.resume("u-ops")).rejects.toThrow(/Emergency stop/);
     p.killSwitch.release();
-    expect((await p.orchestrator.executePendingApproved())[0]!.status).toBe("completed");
+    expect((await p.resume("u-ops"))[0]!.status).toBe("completed");
     expect(p.connectors.email.outbox()).toHaveLength(1);
   });
 
@@ -232,8 +232,8 @@ describe("Orchestrator", () => {
     p.register(testAgent({ policy: async () => done("help", { status: "escalated" }) }));
     const t = p.orchestrator.submit({ type: "test.run", input: {}, originator: "u-requester" });
     await p.orchestrator.run(t.id);
-    expect(() => p.orchestrator.resolveEscalated(p.orchestrator.submit({ type: "test.run", input: {}, originator: "u-requester" }).id, "u-cs-sup", "complete", "")).toThrow(/not escalated/);
-    const r = p.orchestrator.resolveEscalated(t.id, "u-cs-sup", "requeue", "added missing data");
+    expect(() => p.resolveEscalated(p.orchestrator.submit({ type: "test.run", input: {}, originator: "u-requester" }).id, "u-cs-sup", "complete", "")).toThrow(/not escalated/);
+    const r = p.resolveEscalated(t.id, "u-cs-sup", "requeue", "added missing data");
     expect(r.status).toBe("queued");
     expect(p.escalations.list({ taskId: t.id })[0]!.status).toBe("resolved");
   });

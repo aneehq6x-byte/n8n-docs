@@ -12,7 +12,7 @@ import type { JsonObject } from "../core/types.ts";
 import { hashObject, newId, type Clock } from "../core/util.ts";
 import type { EscalationService } from "../escalation/escalation.ts";
 import type { MemoryStore } from "../memory/memory-store.ts";
-import type { DecisionProof } from "../identity/approver-keys.ts";
+import { verifyHumanAction, type ApproverKeyRegistry, type DecisionProof, type HumanActionProof, type HumanActionPurpose } from "../identity/approver-keys.ts";
 import type { AgentRuntime } from "../runtime/runtime.ts";
 import { detectInjection } from "../security/untrusted.ts";
 import type { ToolExecutor } from "../tools/executor.ts";
@@ -53,6 +53,8 @@ export interface OrchestratorDeps {
   maxAttempts: number;
   /** المهلة الافتراضية لتشغيل وكيل واحد، إن لم يحدد الوكيل مهلته. */
   defaultTimeoutMs: number;
+  /** توثيق القرارات البشرية غير الموافقة (T17). */
+  humanAuth: { mode: "signed" | "trusted"; keys: ApproverKeyRegistry };
 }
 
 /** التأخير المتصاعد بعد الفشل: 30 ثانية ثم 60 ثم 120، بحد أقصى 15 دقيقة. */
@@ -273,11 +275,38 @@ export class Orchestrator {
    * ينفّذ كل الموافقات المعتمدة التي لم تُنفَّذ بعد، كالتي اعتُمدت أثناء الإيقاف الطارئ.
    * يُستدعى يدويًا من المشغّل بعد رفع الإيقاف (ops/cli.ts resume)، ولا يحدث تلقائيًا.
    */
-  async executePendingApproved(): Promise<Task[]> {
+  async executePendingApproved(humanId: string, proof?: HumanActionProof): Promise<Task[]> {
     this.deps.killSwitch.assertNotEngaged();
+    assertAuditIntegrity(this.deps.audit, this.deps.killSwitch, "resume of approved actions");
+    const pending = this.deps.gate.list({ status: "approved" });
+    // التوقيع يغطي قائمة الموافقات بالضبط: موافقة ظهرت بعد التوقيع لا تُنفَّذ به.
+    const fp = this.authenticate("ops.resume_approved/v1", humanId, "pending-approved", { approvalIds: pending.map((a) => a.id).sort() }, proof);
+    if (!this.deps.directory.get(humanId).roles.includes("platform_operator")) throw new PlatformError("UNAUTHORIZED_APPROVER", "Only a platform_operator can resume approved actions");
+    this.deps.audit.append({ actor: { type: "human", id: humanId }, action: "ops.resume_approved", outcome: "success", data: { approvals: pending.map((a) => a.id), ...fp } });
     const out: Task[] = [];
-    for (const a of this.deps.gate.list({ status: "approved" })) out.push(await this.executeApproval(a.id));
+    for (const a of pending) out.push(await this.executeApproval(a.id));
     return out;
+  }
+
+  /** رفع الإيقاف الطارئ: platform_operator فقط، وبسجل سليم، وبتوقيع. التفعيل نفسه لا يحتاج توقيعًا. */
+  releaseEmergencyStop(humanId: string, note: string, proof?: HumanActionProof): void {
+    if (!this.deps.directory.get(humanId).roles.includes("platform_operator")) throw new PlatformError("UNAUTHORIZED_APPROVER", "Only a platform_operator can release the emergency stop");
+    if (!note.trim()) throw new PlatformError("INVALID_INPUT", "Releasing the emergency stop requires a note");
+    const v = this.deps.audit.verify();
+    if (!v.valid) throw new PlatformError("AUDIT_TAMPERED", `Refusing to release: audit chain broken at seq ${v.firstBrokenSeq}`);
+    const fp = this.authenticate("ops.release_stop/v1", humanId, "emergency-stop", { note }, proof);
+    this.deps.killSwitch.release();
+    this.deps.audit.append({ actor: { type: "human", id: humanId }, action: "ops.kill_switch.release", outcome: "success", data: { note, ...fp } });
+  }
+
+  private authenticate(purpose: HumanActionPurpose, humanId: string, subject: string, details: unknown, proof?: HumanActionProof): { keyFingerprint?: string; auth: string } {
+    if (this.deps.humanAuth.mode !== "signed") return { auth: "trusted" };
+    try {
+      return { auth: "signed", keyFingerprint: verifyHumanAction(this.deps.humanAuth.keys, this.deps.clock, proof, { purpose, humanId, subject, details }) };
+    } catch (err) {
+      this.deps.audit.append({ actor: { type: "human", id: humanId }, action: purpose.split("/")[0]!, target: subject, outcome: "denied", data: { code: "AUTHENTICATION_FAILED", reason: (err as Error).message } });
+      throw err;
+    }
   }
 
   private async executeApproval(approvalId: string): Promise<Task> {
@@ -301,9 +330,11 @@ export class Orchestrator {
   }
 
   /** استئناف بشري لمهمة مصعّدة: إعادتها للطابور، أو إغلاقها بقرار. */
-  resolveEscalated(taskId: string, humanId: string, action: "requeue" | "complete" | "reject" | "cancel", note: string): Task {
+  resolveEscalated(taskId: string, humanId: string, action: "requeue" | "complete" | "reject" | "cancel", note: string, proof?: HumanActionProof): Task {
     const task = this.get(taskId);
     if (task.status !== "escalated") throw new PlatformError("INVALID_TRANSITION", `Task ${taskId} is ${task.status}, not escalated`);
+    if (!note.trim()) throw new PlatformError("INVALID_INPUT", "Resolving an escalation requires a note");
+    this.authenticate("task.resolve_escalation/v1", humanId, taskId, { action, note }, proof);
     for (const e of this.deps.escalations.list({ taskId, status: "open" })) this.deps.escalations.resolve(e.id, humanId, note);
     this.deps.audit.append({ actor: { type: "human", id: humanId }, action: `task.${action}`, target: taskId, taskId, outcome: "success", data: { note } });
     const to: TaskStatus = action === "requeue" ? "queued" : action === "complete" ? "completed" : action === "reject" ? "rejected" : "cancelled";

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { testPlatform } from "../../tests/helpers.ts";
 import { paymentSchedulerAgent } from "../finance/payment-scheduler/agent.ts";
 import { setInvoiceStatus } from "../finance/shared/eval-fixtures.ts";
-import { resolvePotentialMatch } from "./human-actions.ts";
+import { resolvePotentialMatchSigned } from "./human-actions.ts";
 import { sanctionsScreenerAgent } from "./sanctions-screener/agent.ts";
 import { MATCH_THRESHOLD, nameScore, skeleton, tokens } from "./shared/name-matching.ts";
 
@@ -48,8 +48,8 @@ describe("compliance human decisions", () => {
     expect(hit.status).toBe("potential_match");
     expect(p.gate.list()).toHaveLength(0);
 
-    expect(() => resolvePotentialMatch(p, hit.id, "u-fin-ctrl", "false_positive", "looks fine")).toThrow(/compliance officer/);
-    resolvePotentialMatch(p, hit.id, "u-compliance", "false_positive", "Different person: DOB and nationality do not match listing");
+    expect(() => resolvePotentialMatchSigned(p, hit.id, "u-fin-ctrl", "false_positive", "looks fine")).toThrow(/compliance officer/);
+    resolvePotentialMatchSigned(p, hit.id, "u-compliance", "false_positive", "Different person: DOB and nationality do not match listing");
     expect(p.connectors.sanctions.latestScreening("sup-007")!.status).toBe("false_positive");
 
     const again = p.orchestrator.submit({ type: "finance.payment", input: { invoiceId: "INV-9010" }, originator: "u-requester", idempotencyKey: `${t.id}:retry` });
@@ -62,7 +62,7 @@ describe("compliance human decisions", () => {
     p.register(sanctionsScreenerAgent);
     const t = p.orchestrator.submit({ type: "compliance.screen", input: { partyType: "supplier", partyId: "sup-007" }, originator: "u-requester" });
     await p.orchestrator.run(t.id);
-    resolvePotentialMatch(p, p.connectors.sanctions.latestScreening("sup-007")!.id, "u-compliance", "confirmed_match", "Confirmed against OFAC record");
+    resolvePotentialMatchSigned(p, p.connectors.sanctions.latestScreening("sup-007")!.id, "u-compliance", "confirmed_match", "Confirmed against OFAC record");
     setInvoiceStatus(p, "INV-9001", "matched");
     expect(() => p.connectors.sanctions.resolveScreening(p.connectors.sanctions.latestScreening("sup-007")!.id, "u-compliance", "false_positive", "x")).toThrow(/Only potential matches/);
   });

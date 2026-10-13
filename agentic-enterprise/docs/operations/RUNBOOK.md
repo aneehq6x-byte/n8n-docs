@@ -62,8 +62,8 @@ npm run ops -- approve <apr_id> --as u-proc-mgr --key ~/.keys/proc-mgr.pem --com
 npm run ops -- reject  <apr_id> --as u-proc-mgr --key ~/.keys/proc-mgr.pem --comment "wrong cost center"   # السبب إلزامي
 npm run ops -- revoke  <apr_id> --as u-proc-mgr --comment "supplier dispute"   # قبل التنفيذ فقط
 npm run ops -- escalations
-npm run ops -- resolve <task_id> --as u-proc-mgr --action requeue --note "budget raised"
-npm run ops -- clear-match <scr_id> --as u-compliance --status false_positive --note "different DOB and nationality"
+npm run ops -- resolve <task_id> --as u-proc-mgr --key ~/.keys/proc-mgr.pem --action requeue --note "budget raised"
+npm run ops -- clear-match <scr_id> --as u-compliance --key ~/.keys/compliance.pem --status false_positive --note "different DOB and nationality"
 ```
 
 ### 2.2 الموثوقية التلقائية
@@ -211,8 +211,12 @@ npm run ops -- audit task <id>   # كل ما جرى في مهمة
 2. `npm run ops -- audit verify`: السلسلة سليمة. الرفع يُرفض آليًا إن لم تكن.
 3. `npm run ops -- escalations`: كل تصعيد critical له مالك.
 4. راجع الموافقات المعتمدة التي لم تُنفَّذ (`ops status`). ما زال كل منها صحيحًا؟ ارفض ما لا يجب تنفيذه قبل الاستئناف.
-5. `npm run ops -- release --as <platform_operator> --note "<الخلاصة>"`. لا يملك الرفع إلا `platform_operator`.
-6. `npm run ops -- resume --as <platform_operator>`: ينفّذ الموافقات المعلقة. إعادة التقييم عند التنفيذ تمنع ما تغيّر وضعه.
+5. `npm run ops -- release --as <platform_operator> --key <pem> --note "<الخلاصة>"`.
+   - لا يملك الرفع إلا `platform_operator`، وبتوقيعه، وبسجل سليم.
+   - التفعيل (`kill`) لا يحتاج توقيعًا عن قصد.
+6. `npm run ops -- resume --as <platform_operator> --key <pem>`: ينفّذ الموافقات المعلقة.
+   - التوقيع يغطي قائمتها بالضبط.
+   - إعادة التقييم عند التنفيذ تمنع ما تغيّر وضعه.
 7. `npm run ops -- run`.
 8. راقب `ops status` لمدة ساعة.
 

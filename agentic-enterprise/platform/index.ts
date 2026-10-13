@@ -12,7 +12,7 @@ import type { Human } from "./core/types.ts";
 import type { Task } from "./orchestrator/task.ts";
 import { systemClock, type Clock } from "./core/util.ts";
 import { EscalationService, InMemoryNotifier } from "./escalation/escalation.ts";
-import { ApproverKeyRegistry, DevSigner, type DecisionProof } from "./identity/approver-keys.ts";
+import { ApproverKeyRegistry, DevSigner, type DecisionProof, type HumanActionProof, type HumanActionPurpose } from "./identity/approver-keys.ts";
 import { MemoryStore } from "./memory/memory-store.ts";
 import { Orchestrator } from "./orchestrator/orchestrator.ts";
 import { ClaudeAgentRuntime } from "./runtime/claude-runtime.ts";
@@ -41,6 +41,14 @@ export interface Platform {
   register(...agents: AgentDefinition[]): Platform;
   /** يبني إثبات قرار موقّعًا بمفاتيح التطوير (يتطلب devKeys). */
   signDecision(approvalId: string, humanId: string, decision: "approve" | "reject", comment?: string): DecisionProof;
+  /** إثبات موقّع لقرار بشري غير الموافقة بمفاتيح التطوير (يتطلب devKeys). */
+  signAction(humanId: string, purpose: HumanActionPurpose, subject: string, details: unknown): HumanActionProof | undefined;
+  /** حل تصعيد، موقّع تلقائيًا بمفاتيح التطوير. */
+  resolveEscalated(taskId: string, humanId: string, action: "requeue" | "complete" | "reject" | "cancel", note: string): Task;
+  /** استئناف الموافقات المعتمدة بعد رفع الإيقاف، موقّع تلقائيًا بمفاتيح التطوير. */
+  resume(humanId: string): Promise<Task[]>;
+  /** رفع الإيقاف الطارئ، موقّع تلقائيًا بمفاتيح التطوير. */
+  release(humanId: string, note: string): void;
   /** قرار بشري كامل عبر المنسق، موقّع تلقائيًا في وضع signed عند توفر مفاتيح التطوير. */
   decide(approvalId: string, humanId: string, decision: "approve" | "reject", comment?: string): Promise<Task>;
   close(): void;
@@ -92,7 +100,7 @@ export function createPlatform(opts: CreatePlatformOptions = {}): Platform {
   let executor: ToolExecutor;
   const orchestrator = new Orchestrator({
     db, audit, gate, escalations, memory, killSwitch, directory, clock, runtime,
-    executor: () => executor, connectors, maxAttempts: 3, defaultTimeoutMs: config.AGENT_TIMEOUT_MS,
+    executor: () => executor, connectors, maxAttempts: 3, defaultTimeoutMs: config.AGENT_TIMEOUT_MS, humanAuth: { mode: config.APPROVER_AUTH, keys },
   });
   executor = new ToolExecutor({
     audit, gate, escalations, memory, killSwitch, connectors, clock,
@@ -110,6 +118,20 @@ export function createPlatform(opts: CreatePlatformOptions = {}): Platform {
     signDecision(approvalId, humanId, decision, comment = "") {
       if (!devSigner) throw new Error("signDecision requires createPlatform({ devKeys: true })");
       return devSigner.sign({ approvalId, humanId, decision, comment, payloadHash: gate.get(approvalId).payloadHash, issuedAt: clock.now().toISOString() });
+    },
+    signAction(humanId, purpose, subject, details) {
+      if (config.APPROVER_AUTH !== "signed" || !devSigner) return undefined;
+      return devSigner.signAction({ purpose, humanId, subject, details, issuedAt: clock.now().toISOString() });
+    },
+    resolveEscalated(taskId, humanId, action, note) {
+      return orchestrator.resolveEscalated(taskId, humanId, action, note, platform.signAction(humanId, "task.resolve_escalation/v1", taskId, { action, note }));
+    },
+    resume(humanId) {
+      const ids = gate.list({ status: "approved" }).map((a) => a.id).sort();
+      return orchestrator.executePendingApproved(humanId, platform.signAction(humanId, "ops.resume_approved/v1", "pending-approved", { approvalIds: ids }));
+    },
+    release(humanId, note) {
+      orchestrator.releaseEmergencyStop(humanId, note, platform.signAction(humanId, "ops.release_stop/v1", "emergency-stop", { note }));
     },
     decide(approvalId, humanId, decision, comment = "") {
       const proof = config.APPROVER_AUTH === "signed" && devSigner ? platform.signDecision(approvalId, humanId, decision, comment) : undefined;

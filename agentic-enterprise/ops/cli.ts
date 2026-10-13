@@ -7,7 +7,7 @@ import { loadConfig } from "../platform/config.ts";
 import { defaultFixtures, type Fixtures } from "../platform/connectors/mock/fixtures.ts";
 import { isPlatformError } from "../platform/core/errors.ts";
 import type { JsonObject } from "../platform/core/types.ts";
-import { generateApproverKeyPair, signDecision } from "../platform/identity/approver-keys.ts";
+import { generateApproverKeyPair, signAction, signDecision, type HumanActionProof, type HumanActionPurpose } from "../platform/identity/approver-keys.ts";
 import { createPlatform, type Platform } from "../platform/index.ts";
 import { computeMetrics } from "./metrics.ts";
 
@@ -28,13 +28,15 @@ import { computeMetrics } from "./metrics.ts";
  *   npm run ops -- resolve <taskId> --as <human> --action requeue|complete|reject|cancel --note "…"
  *   npm run ops -- clear-match <screeningId> --as <human> --status false_positive|confirmed_match --note "…"
  *   npm run ops -- kill "<reason>" --as <human>             إيقاف طارئ فوري
- *   npm run ops -- release --as <human>                     رفع الإيقاف (لا يستأنف التنفيذ تلقائيًا)
- *   npm run ops -- resume --as <human>                      تنفيذ الموافقات المعلّقة بعد رفع الإيقاف
+ *   npm run ops -- release --as <operator> --key <pem> --note "…"   رفع الإيقاف (لا يستأنف التنفيذ تلقائيًا)
+ *   npm run ops -- resume --as <operator> --key <pem>                تنفيذ الموافقات المعلّقة بعد رفع الإيقاف
  *   npm run ops -- audit verify | audit tail [n] | audit task <taskId>
  *   npm run ops -- reset-demo --confirm                     حذف البيانات المحلية (بيئة التطوير فقط)
  *
  * الهوية: قرارات الموافقة موقّعة بمفتاح الموافق الخاص (APPROVER_AUTH=signed، الافتراضي)، فـ --as وحده لا يكفي.
- * باقي الأوامر (submit وresolve وkill) ما تزال تعتمد --as دون توثيق، وربطها بـ SSO مخطط (IMPLEMENTATION_ROADMAP.md).
+ * وكذلك كل قرار يفتح أو يستأنف عملية: resolve وclear-match وrelease وresume (--key).
+ * الإيقاف (kill) لا يحتاج توقيعًا عن قصد: الإيقاف يجب أن يكون سهلًا دائمًا (fail-safe).
+ * submit ما يزال يعتمد --as، فالطالب لا يملك صلاحية تنفيذ، وأي أثر لطلبه يمر بموافقة موقّعة.
  */
 
 const config = loadConfig();
@@ -71,6 +73,14 @@ function requireHuman(p: Platform): string {
   if (!values.as) throw new Error("--as <humanId> is required for this command");
   p.directory.get(values.as);
   return values.as;
+}
+
+/** يوقّع قرارًا بشريًا بالمفتاح الخاص للمستخدم، إن كان وضع التوثيق signed. */
+function signIfRequired(p: Platform, humanId: string, purpose: HumanActionPurpose, subject: string, details: unknown): HumanActionProof | undefined {
+  if (p.config.APPROVER_AUTH !== "signed") return undefined;
+  const keyFile = values.key ?? process.env.APPROVER_KEY_FILE;
+  if (!keyFile) throw new Error(`${purpose} requires a signature: pass --key <private.pem> or set APPROVER_KEY_FILE`);
+  return signAction(readFileSync(keyFile, "utf8"), { purpose, humanId, subject, details, issuedAt: new Date().toISOString() });
 }
 
 function table(rows: Array<Record<string, unknown>>): void {
@@ -172,13 +182,16 @@ async function main(): Promise<void> {
       case "resolve": {
         const action = values.action as "requeue" | "complete" | "reject" | "cancel";
         if (!args[0] || !["requeue", "complete", "reject", "cancel"].includes(action) || !values.note) throw new Error("usage: resolve <taskId> --as <human> --action requeue|complete|reject|cancel --note '…'");
-        console.log(`Task ${args[0]} → ${p.orchestrator.resolveEscalated(args[0], requireHuman(p), action, values.note).status}`);
+        const who = requireHuman(p);
+        const proof = signIfRequired(p, who, "task.resolve_escalation/v1", args[0], { action, note: values.note });
+        console.log(`Task ${args[0]} → ${p.orchestrator.resolveEscalated(args[0], who, action, values.note, proof).status}`);
         break;
       }
       case "clear-match": {
         const status = values.status as "false_positive" | "confirmed_match";
         if (!args[0] || !["false_positive", "confirmed_match"].includes(status) || !values.note) throw new Error("usage: clear-match <screeningId> --as <human> --status false_positive|confirmed_match --note '…'");
-        console.log(resolvePotentialMatch(p, args[0], requireHuman(p), status, values.note));
+        const who = requireHuman(p);
+        console.log(resolvePotentialMatch(p, args[0], who, status, values.note, signIfRequired(p, who, "compliance.resolve_match/v1", args[0], { status, note: values.note })));
         break;
       }
       case "kill": {
@@ -191,18 +204,14 @@ async function main(): Promise<void> {
       }
       case "release": {
         const who = requireHuman(p);
-        if (!p.directory.get(who).roles.includes("platform_operator")) throw new Error("Only a platform_operator can release the emergency stop");
-        const audit = p.audit.verify();
-        if (!audit.valid) throw new Error(`Refusing to release: audit chain broken at seq ${audit.firstBrokenSeq}`);
-        p.killSwitch.release();
-        p.audit.append({ actor: { type: "human", id: who }, action: "ops.kill_switch.release", outcome: "success", data: { note: values.note } });
-        console.log("Emergency stop released. Queued tasks resume on the next `run`; approved actions need an explicit `resume`.");
+        p.orchestrator.releaseEmergencyStop(who, values.note, signIfRequired(p, who, "ops.release_stop/v1", "emergency-stop", { note: values.note }));
+        console.log("Emergency stop released. Queued tasks resume on the next `run`; approved actions need an explicit, signed `resume`.");
         break;
       }
       case "resume": {
         const who = requireHuman(p);
-        const done = await p.orchestrator.executePendingApproved();
-        p.audit.append({ actor: { type: "human", id: who }, action: "ops.resume_approved", outcome: "success", data: { executed: done.length } });
+        const ids = p.gate.list({ status: "approved" }).map((a) => a.id).sort();
+        const done = await p.orchestrator.executePendingApproved(who, signIfRequired(p, who, "ops.resume_approved/v1", "pending-approved", { approvalIds: ids }));
         table(done.map((t) => ({ task: t.id, type: t.type, status: t.status })));
         break;
       }

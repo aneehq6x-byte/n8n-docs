@@ -55,6 +55,11 @@ const MUTATIONS = [
   ["hardening: approval request dedupe (R9)", "platform/approval/approval-gate.ts", "if (existing) {", "if (false) {"],
   ["hardening: rejection reason", "platform/approval/approval-gate.ts", 'if (decision === "reject" && !comment.trim()) throw', "if (false) throw"],
   ["hardening: revoke blocks grant", "platform/approval/approval-gate.ts", "this.db.prepare(\"UPDATE approvals SET status = 'revoked' WHERE id = ? AND status IN ('pending','approved') AND grant_nonce IS NULL\").run(id);", ""],
+  ["T17: human action bound to details", "platform/identity/approver-keys.ts", 'if (proof.detailsHash !== hashObject(expected.details)) fail("details do not match what was signed");', ""],
+  ["T17: human action signature", "platform/identity/approver-keys.ts", "  if (!ok) fail(\"invalid signature\");\n  return key.fingerprint;\n}\n\n/**\n * موقِّع", "  return key.fingerprint;\n}\n\n/**\n * موقِّع"],
+  ["T17: resolve escalation authenticated", "platform/orchestrator/orchestrator.ts", 'this.authenticate("task.resolve_escalation/v1", humanId, taskId, { action, note }, proof);', ""],
+  ["T17: release authenticated", "platform/orchestrator/orchestrator.ts", 'const fp = this.authenticate("ops.release_stop/v1", humanId, "emergency-stop", { note }, proof);', "const fp = {};"],
+  ["T17: sanctions clearance authenticated", "agents/compliance/human-actions.ts", 'if (p.config.APPROVER_AUTH === "signed") {', "if (false) {"],
   // المشتريات
   ["procurement: decision guard", A + "procurement/requisition-intake/guardrails/decision-matches-assessment.ts", "check: (call, ctx) => {", "check: (call, ctx) => { if (1) return allow;"],
   ["procurement: split detection", A + "procurement/shared/assessment.ts", "if (prior.length > 0 && g.totalUsd", "if (false && g.totalUsd"],
