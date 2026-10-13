@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { ALL_AGENTS } from "../agents/index.ts";
+import { ManualClock } from "../platform/core/util.ts";
+import { createPlatform } from "../platform/index.ts";
+import { ScriptedRuntime } from "../platform/runtime/runtime.ts";
 import { testPlatform } from "../tests/helpers.ts";
 import { computeMetrics } from "./metrics.ts";
 
@@ -37,6 +40,11 @@ describe("ops metrics and alerts", () => {
     clock.advanceHours(25);
     p.killSwitch.engage("test", false);
     expect(codes(p)).toEqual(expect.arrayContaining(["ESCALATION_OVERDUE", "KILL_SWITCH_ENGAGED"]));
+  });
+
+  it("warns when the audit log is not externally anchored", () => {
+    const p = createPlatform({ config: { DATABASE_PATH: ":memory:", KILL_SWITCH: false }, clock: new ManualClock(), runtime: new ScriptedRuntime(), isolated: true });
+    expect(computeMetrics(p).alerts.map((a) => a.code)).toContain("AUDIT_ANCHOR_DISABLED");
   });
 
   it("flags a guardrail spike from a misbehaving agent", async () => {

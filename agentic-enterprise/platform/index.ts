@@ -1,5 +1,6 @@
 import type { AgentDefinition } from "./agent/agent-definition.ts";
 import { ApprovalGate, defaultPolicy } from "./approval/approval-gate.ts";
+import { HmacFileAnchor, NoAnchor, parseAnchorKey, type AuditAnchor } from "./audit/anchor.ts";
 import { AuditLog } from "./audit/audit-log.ts";
 import type { Fixtures } from "./connectors/mock/fixtures.ts";
 import { createMockConnectors, type MockConnectors } from "./connectors/mock/mock-connectors.ts";
@@ -48,13 +49,19 @@ export interface CreatePlatformOptions {
   isolated?: boolean;
   /** فتح المنصة رغم تلف audit log للتشخيص فقط. يُفعّل الإيقاف الطارئ في الذاكرة، فلا يعمل أي وكيل. */
   forensic?: boolean;
+  /** تثبيت audit صريح (للاختبارات). الافتراضي: ملف HMAC إن وُجد المفتاح، وإلا بلا تثبيت. */
+  anchor?: AuditAnchor;
 }
 
 export function createPlatform(opts: CreatePlatformOptions = {}): Platform {
   const config = loadConfig(process.env, opts.config);
   const clock = opts.clock ?? systemClock;
   const db = openDatabase(config.DATABASE_PATH);
-  const audit = new AuditLog(db, clock);
+  const anchor: AuditAnchor =
+    opts.anchor ??
+    (config.AUDIT_ANCHOR_KEY ? new HmacFileAnchor(config.AUDIT_ANCHOR_FILE, parseAnchorKey(config.AUDIT_ANCHOR_KEY)) : new NoAnchor());
+  if (config.AUDIT_ANCHOR_REQUIRED && anchor.kind === "none") throw new Error("AUDIT_ANCHOR_REQUIRED=true but AUDIT_ANCHOR_KEY is not set");
+  const audit = new AuditLog(db, clock, anchor);
   // الإقلاع يرفض سجلًا تالفًا (fail-closed). الوضع الجنائي يسمح بالفتح للتشخيص فقط، مع إيقاف طارئ إلزامي.
   if (!opts.forensic) audit.assertIntact();
   const directory = new HumanDirectory(opts.humans ?? DEFAULT_HUMANS);

@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto";
+import { MemoryAnchor } from "../audit/anchor.ts";
 import { ManualClock } from "../core/util.ts";
 import { createPlatform } from "../index.ts";
 import { ClaudeAgentRuntime } from "../runtime/claude-runtime.ts";
@@ -23,6 +25,7 @@ export async function runScenario(s: EvalScenario, mode: EvalMode): Promise<Scen
     config: { DATABASE_PATH: ":memory:", KILL_SWITCH: false },
     clock: new ManualClock(),
     isolated: true,
+    anchor: new MemoryAnchor(randomBytes(32)),
     runtime:
       mode === "live"
         ? new ClaudeAgentRuntime({ model: process.env.AGENT_MODEL ?? "claude-opus-5-5", maxTurns: 20, maxBudgetUsd: 2 })

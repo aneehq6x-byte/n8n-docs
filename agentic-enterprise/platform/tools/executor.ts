@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { AgentDefinition, ToolGateway } from "../agent/agent-definition.ts";
 import type { ApprovalGate } from "../approval/approval-gate.ts";
 import type { AuditLog } from "../audit/audit-log.ts";
+import { assertAuditIntegrity } from "../audit/integrity.ts";
 import type { Connectors } from "../connectors/types.ts";
 import { isPlatformError } from "../core/errors.ts";
 import type { KillSwitch } from "../core/kill-switch.ts";
@@ -157,6 +158,11 @@ export class ToolExecutor {
     if (killSwitch.isEngaged()) {
       log("denied", { code: "KILL_SWITCH_ACTIVE" });
       return { status: "denied", code: "KILL_SWITCH_ACTIVE", reason: "Emergency stop is engaged" };
+    }
+    try {
+      assertAuditIntegrity(audit, killSwitch, `execution of ${approval.toolName}`);
+    } catch (err) {
+      return { status: "denied", code: "AUDIT_TAMPERED", reason: (err as Error).message };
     }
     if (approval.status !== "approved") {
       log("denied", { code: "APPROVAL_INVALID", status: approval.status });

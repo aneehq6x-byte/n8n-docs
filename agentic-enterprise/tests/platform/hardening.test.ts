@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { randomBytes } from "node:crypto";
+import { HmacFileAnchor, parseAnchorKey } from "../../platform/audit/anchor.ts";
 import { AuditLog } from "../../platform/audit/audit-log.ts";
 import { openDatabase } from "../../platform/core/db.ts";
 import { systemClock } from "../../platform/core/util.ts";
@@ -15,8 +17,9 @@ import { done, testAgent, testPlatform } from "../helpers.ts";
  */
 const run = promisify(execFile);
 const WORKER = join(import.meta.dirname, "../fixtures/worker.mts");
-const worker = (...args: string[]) =>
-  run(process.execPath, ["--disable-warning=ExperimentalWarning", "--import", "tsx", WORKER, ...args], { cwd: join(import.meta.dirname, "../.."), timeout: 60_000 });
+const worker = (...args: string[]) => workerEnv({}, ...args);
+const workerEnv = (env: Record<string, string>, ...args: string[]) =>
+  run(process.execPath, ["--disable-warning=ExperimentalWarning", "--import", "tsx", WORKER, ...args], { cwd: join(import.meta.dirname, "../.."), timeout: 60_000, env: { ...process.env, ...env } });
 
 describe("R1/R2: concurrent processes on one database", () => {
   it("loses no audit events and keeps a valid chain with 3 concurrent writers", async () => {
@@ -24,6 +27,14 @@ describe("R1/R2: concurrent processes on one database", () => {
     await Promise.all([worker("append", db, "200"), worker("append", db, "200"), worker("append", db, "200")]);
     const v = new AuditLog(openDatabase(db), systemClock).verify();
     expect(v).toMatchObject({ valid: true, entries: 600 });
+  }, 90_000);
+
+  it("R5/R6 under concurrency: 3 writers sharing one signed anchor file stay fully anchored and valid", async () => {
+    const db = join(mkdtempSync(join(tmpdir(), "ae-")), "a.db");
+    const key = randomBytes(32).toString("hex");
+    await Promise.all([1, 2, 3].map(() => workerEnv({ AUDIT_ANCHOR_KEY: key }, "append", db, "150")));
+    const v = new AuditLog(openDatabase(db), systemClock, new HmacFileAnchor(`${db}.anchor.jsonl`, parseAnchorKey(key))).verify();
+    expect(v).toMatchObject({ valid: true, entries: 450, anchoring: "file", pendingAnchors: 0 });
   }, 90_000);
 
   it("R4: three concurrent workers execute each task exactly once", async () => {

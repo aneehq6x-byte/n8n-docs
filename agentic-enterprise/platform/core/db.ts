@@ -19,6 +19,8 @@ export function openDatabase(path: string): Database {
 }
 
 const depth = new WeakMap<Database, number>();
+/** خطافات ما بعد الالتزام لكل مستوى معاملة. تُنفَّذ بعد COMMIT الخارجي فقط، وتُسقط عند أي تراجع. */
+const hooks = new WeakMap<Database, Array<Array<() => void>>>();
 
 /**
  * تنفيذ مجموعة عمليات في معاملة واحدة: إما تنجح كلها أو لا يُحفظ شيء.
@@ -28,18 +30,36 @@ const depth = new WeakMap<Database, number>();
 export function transaction<T>(db: Database, fn: () => T): T {
   const level = depth.get(db) ?? 0;
   const sp = `sp_${level}`;
+  const stack = hooks.get(db) ?? [];
+  hooks.set(db, stack);
   db.exec(level === 0 ? "BEGIN IMMEDIATE" : `SAVEPOINT ${sp}`);
   depth.set(db, level + 1);
+  stack.push([]);
+  let pending: Array<() => void> = [];
   try {
     const result = fn();
     db.exec(level === 0 ? "COMMIT" : `RELEASE ${sp}`);
+    pending = stack.pop()!;
+    if (level === 0) for (const h of pending) h();
+    else stack[stack.length - 1]!.push(...pending); // تُرحَّل للمستوى الأب، ولا تُنفَّذ قبل الالتزام الخارجي
     return result;
   } catch (err) {
+    if (stack.length > level) stack.splice(level); // التراجع يُسقط خطافات هذا المستوى وما تحته
     db.exec(level === 0 ? "ROLLBACK" : `ROLLBACK TO ${sp}; RELEASE ${sp}`);
     throw err;
   } finally {
     depth.set(db, level);
   }
+}
+
+/**
+ * يسجّل دالة تُنفَّذ بعد التزام المعاملة الخارجية، ولا تُنفَّذ إن تراجعت.
+ * خارج أي معاملة تُنفَّذ فورًا. تُستخدم لكل أثر خارج قاعدة البيانات يجب أن يطابق ما التُزم فعلًا.
+ */
+export function afterCommit(db: Database, fn: () => void): void {
+  const stack = hooks.get(db);
+  if (!stack || stack.length === 0 || (depth.get(db) ?? 0) === 0) return fn();
+  stack[stack.length - 1]!.push(fn);
 }
 
 /**

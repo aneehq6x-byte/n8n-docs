@@ -1,5 +1,6 @@
 import type { Database } from "../core/db.ts";
-import { parseJson, transaction } from "../core/db.ts";
+import { afterCommit, parseJson, transaction } from "../core/db.ts";
+import { NoAnchor, type AuditAnchor } from "./anchor.ts";
 import { PlatformError } from "../core/errors.ts";
 import type { Actor, JsonObject } from "../core/types.ts";
 import { canonicalJson, sha256, type Clock } from "../core/util.ts";
@@ -39,12 +40,23 @@ export interface VerifyResult {
   entries: number;
   firstBrokenSeq?: number;
   reason?: string;
+  /** نوع التثبيت الخارجي. none يعني أن الحذف من الذيل وإعادة الكتابة الكاملة غير قابلين للكشف. */
+  anchoring?: AuditAnchor["kind"];
+  /** أحداث حديثة لم يصل تثبيتها بعد (كاتب متزامن بين الالتزام وكتابة التثبيت). */
+  pendingAnchors?: number;
 }
+
+/**
+ * عدد الأحداث الأخيرة المسموح أن تكون بلا تثبيت بعد. يغطي نافذة السباق بين التزام عملية وكتابة تثبيتها،
+ * ونافذة انهيار بينهما. أي حدث أقدم من هذه النافذة بلا تثبيت يُعد تلاعبًا.
+ */
+export const ANCHOR_PENDING_WINDOW = 8;
 
 export class AuditLog {
   constructor(
     private readonly db: Database,
     private readonly clock: Clock,
+    private readonly anchor: AuditAnchor = new NoAnchor(),
   ) {
     db.exec(`
       CREATE TABLE IF NOT EXISTS audit_log (
@@ -71,7 +83,12 @@ export class AuditLog {
 
   append(input: AuditEntryInput): AuditEntry {
     // قراءة آخر سجل ثم الإدراج داخل معاملة واحدة: بدونها يحصل كاتبان متزامنان على seq نفسه ويُفقد أحدهما (R1).
-    return transaction(this.db, () => this.appendUnsafe(input));
+    return transaction(this.db, () => {
+      const entry = this.appendUnsafe(input);
+      // التثبيت بعد التزام المعاملة الخارجية فقط: حدث تراجعت معاملته لا يُثبَّت، فلا إنذار كاذب.
+      afterCommit(this.db, () => this.anchor.record(entry.seq, entry.hash, entry.ts));
+      return entry;
+    });
   }
 
   private appendUnsafe(input: AuditEntryInput): AuditEntry {
@@ -126,18 +143,41 @@ export class AuditLog {
 
   verify(): VerifyResult {
     const rows = this.db.prepare("SELECT * FROM audit_log ORDER BY seq").all();
+    const anchoring = this.anchor.kind;
     let prevHash = GENESIS_HASH;
     let expectedSeq = 1;
+    const hashes = new Map<number, string>();
     for (const raw of rows) {
       const e = rowToEntry(raw as Record<string, unknown>);
-      if (e.seq !== expectedSeq) return broken(rows.length, e.seq, "sequence gap");
-      if (e.prevHash !== prevHash) return broken(rows.length, e.seq, "prev_hash mismatch");
+      if (e.seq !== expectedSeq) return { ...broken(rows.length, e.seq, "sequence gap"), anchoring };
+      if (e.prevHash !== prevHash) return { ...broken(rows.length, e.seq, "prev_hash mismatch"), anchoring };
       const { hash, ...body } = e;
-      if (sha256(canonicalJson(body)) !== hash) return broken(rows.length, e.seq, "content hash mismatch");
+      if (sha256(canonicalJson(body)) !== hash) return { ...broken(rows.length, e.seq, "content hash mismatch"), anchoring };
+      hashes.set(e.seq, hash);
       prevHash = hash;
       expectedSeq++;
     }
-    return { valid: true, entries: rows.length };
+    if (anchoring === "none") return { valid: true, entries: rows.length, anchoring };
+
+    // مطابقة القاعدة مع التثبيت الخارجي: يكشف الحذف من الذيل (R5) وإعادة الكتابة الكاملة (R6).
+    const a = this.anchor.read();
+    const lastSeq = rows.length;
+    if (a.invalidSignatures > 0) return { ...broken(lastSeq, 0, `${a.invalidSignatures} anchor entr(y/ies) with invalid signature`), anchoring };
+    if (!a.present && lastSeq > 0) return { ...broken(lastSeq, 1, "anchor store missing while audit log has events"), anchoring };
+    const anchored = new Map<number, string>();
+    for (const e of a.entries) anchored.set(e.seq, e.hash);
+    for (const [seq, hash] of [...anchored].sort((x, y) => x[0] - y[0])) {
+      const dbHash = hashes.get(seq);
+      if (dbHash === undefined) return { ...broken(lastSeq, seq, "anchored event missing from audit log (deletion or truncation)"), anchoring };
+      if (dbHash !== hash) return { ...broken(lastSeq, seq, "anchored hash differs from audit log (rewritten history)"), anchoring };
+    }
+    let pending = 0;
+    for (let seq = 1; seq <= lastSeq; seq++) {
+      if (anchored.has(seq)) continue;
+      if (seq <= lastSeq - ANCHOR_PENDING_WINDOW) return { ...broken(lastSeq, seq, "event has no anchor (inserted outside the audit API)"), anchoring };
+      pending++;
+    }
+    return { valid: true, entries: lastSeq, anchoring, pendingAnchors: pending };
   }
 
   /** يرمي خطأ إن كانت السلسلة تالفة. يُستدعى عند الإقلاع وفي evals. */

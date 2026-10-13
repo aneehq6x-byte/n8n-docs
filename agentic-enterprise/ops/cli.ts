@@ -168,7 +168,7 @@ async function main(): Promise<void> {
         const [sub, arg] = args;
         if (sub === "verify") {
           const v = p.audit.verify();
-          console.log(v.valid ? `Audit chain intact: ${v.entries} entries` : `AUDIT CHAIN BROKEN at seq ${v.firstBrokenSeq}: ${v.reason}`);
+          console.log(v.valid ? `Audit chain intact: ${v.entries} entries (anchoring: ${v.anchoring}${v.anchoring === "none" ? " — truncation/rewrite NOT detectable" : `, pending ${v.pendingAnchors}`})` : `AUDIT CHAIN BROKEN at seq ${v.firstBrokenSeq}: ${v.reason}`);
           if (!v.valid) process.exitCode = 3;
         } else if (sub === "tail" || sub === "task") {
           const all = sub === "task" ? p.audit.query({ taskId: arg }) : p.audit.query().slice(-Number(arg ?? 20));

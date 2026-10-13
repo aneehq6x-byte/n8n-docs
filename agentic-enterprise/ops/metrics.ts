@@ -33,7 +33,7 @@ export interface Alert {
 export interface Metrics {
   generatedAt: string;
   killSwitch: boolean;
-  audit: { valid: boolean; entries: number; firstBrokenSeq?: number };
+  audit: { valid: boolean; entries: number; firstBrokenSeq?: number; anchoring: string; pendingAnchors: number };
   tasks: { byStatus: Record<string, number>; byAgent: Record<string, Record<string, number>> };
   approvals: { pending: number; oldestPendingHours: number | null; approvedNotExecuted: number; byAction: Record<string, number> };
   escalations: { open: number; overdue: number; bySeverity: Record<string, number>; byRole: Record<string, number> };
@@ -96,6 +96,7 @@ export function computeMetrics(p: Platform): Metrics {
   const alerts: Alert[] = [];
   const add = (level: AlertLevel, code: string, message: string, action: string) => alerts.push({ level, code, message, action });
   if (!audit.valid) add("critical", "AUDIT_TAMPERED", `Audit chain broken at seq ${audit.firstBrokenSeq}`, "Engage kill switch, page CISO, follow runbook §6.2");
+  if (audit.anchoring === "none") add("warning", "AUDIT_ANCHOR_DISABLED", "Audit log is not externally anchored: truncation and full rewrites are undetectable", "Set AUDIT_ANCHOR_KEY (and AUDIT_ANCHOR_REQUIRED=true in production); runbook §2.4");
   if (p.killSwitch.isEngaged()) add("critical", "KILL_SWITCH_ENGAGED", "Emergency stop is engaged; all agent actions halted", "Follow runbook §5 release checklist when resolved");
   const critical = escalations.filter((e) => e.severity === "critical");
   if (critical.length) add("critical", "CRITICAL_ESCALATION", `${critical.length} critical escalation(s) open: ${critical.map((e) => e.reason).join(", ")}`, "Owner role must act within 1 hour (runbook §6.1)");
@@ -114,7 +115,7 @@ export function computeMetrics(p: Platform): Metrics {
   return {
     generatedAt: now.toISOString(),
     killSwitch: p.killSwitch.isEngaged(),
-    audit: { valid: audit.valid, entries: audit.entries, ...(audit.firstBrokenSeq ? { firstBrokenSeq: audit.firstBrokenSeq } : {}) },
+    audit: { valid: audit.valid, entries: audit.entries, anchoring: audit.anchoring ?? "none", pendingAnchors: audit.pendingAnchors ?? 0, ...(audit.firstBrokenSeq ? { firstBrokenSeq: audit.firstBrokenSeq } : {}) },
     tasks: { byStatus, byAgent },
     approvals: { pending: pending.length, oldestPendingHours: oldest === null ? null : Math.round(oldest * 10) / 10, approvedNotExecuted, byAction },
     escalations: { open: escalations.length, overdue: overdue.length, bySeverity, byRole },

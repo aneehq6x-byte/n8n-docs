@@ -1,6 +1,7 @@
 import type { AgentDefinition, AgentOutcome } from "../agent/agent-definition.ts";
 import type { ApprovalGate } from "../approval/approval-gate.ts";
 import type { AuditLog } from "../audit/audit-log.ts";
+import { assertAuditIntegrity } from "../audit/integrity.ts";
 import type { Connectors } from "../connectors/types.ts";
 import type { Database } from "../core/db.ts";
 import { ensureColumns, parseJson, transaction } from "../core/db.ts";
@@ -151,6 +152,8 @@ export class Orchestrator {
    * آمن للتشغيل من عدة عمليات في الوقت نفسه: كل مهمة يطالب بها عامل واحد فقط (claim ذري).
    */
   async drain(maxTasks = 100): Promise<Task[]> {
+    if (this.deps.killSwitch.isEngaged()) return [];
+    assertAuditIntegrity(this.deps.audit, this.deps.killSwitch, "queue processing");
     this.recoverExpiredLeases();
     const done: Task[] = [];
     const skipped = new Set<string>();
@@ -245,6 +248,7 @@ export class Orchestrator {
 
   /** يطبّق قرارًا بشريًا على طلب موافقة، ثم ينفّذ الإجراء أو يصعّد، ويغلق المهمة إن اكتملت. */
   async decideApproval(approvalId: string, humanId: string, decision: "approve" | "reject", comment = ""): Promise<Task> {
+    assertAuditIntegrity(this.deps.audit, this.deps.killSwitch, "approval decision");
     const req = this.deps.gate.decide(approvalId, humanId, decision, comment);
     const task = this.get(req.taskId);
     if (req.status === "pending") return task; // ينتظر موافقًا ثانيًا

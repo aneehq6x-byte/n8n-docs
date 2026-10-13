@@ -14,7 +14,7 @@ describe("AuditLog", () => {
     const a = log.append({ actor: { type: "agent", id: "a1" }, action: "x", outcome: "success", data: { n: 1 } });
     const b = log.append({ actor: { type: "human", id: "u1" }, action: "y", outcome: "denied" });
     expect(b.prevHash).toBe(a.hash);
-    expect(log.verify()).toEqual({ valid: true, entries: 2 });
+    expect(log.verify()).toMatchObject({ valid: true, entries: 2, anchoring: "none" });
   });
 
   it("rejects UPDATE and DELETE at the database level", () => {

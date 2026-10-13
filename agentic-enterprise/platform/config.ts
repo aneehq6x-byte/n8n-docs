@@ -21,6 +21,11 @@ const ConfigSchema = z.object({
   AGENT_MAX_TURNS: z.coerce.number().int().positive().default(20),
   AGENT_MAX_BUDGET_USD: z.coerce.number().positive().default(2),
   AGENT_TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
+  /** مفتاح HMAC لتثبيت audit خارج القاعدة (32 بايت على الأقل، hex أو base64). يأتي من مدير الأسرار. */
+  AUDIT_ANCHOR_KEY: z.string().optional(),
+  AUDIT_ANCHOR_FILE: z.string().default("./data/audit-anchor.jsonl"),
+  /** true: يرفض الإقلاع دون مفتاح تثبيت. إلزامي في الإنتاج. */
+  AUDIT_ANCHOR_REQUIRED: boolish,
 });
 
 export type PlatformConfig = z.infer<typeof ConfigSchema>;

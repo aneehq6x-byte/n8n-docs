@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { defineAgent, outcomeSchema, type AgentDefinition, type AgentOutcome, type ReferencePolicy } from "../platform/agent/agent-definition.ts";
+import { randomBytes } from "node:crypto";
+import { MemoryAnchor } from "../platform/audit/anchor.ts";
 import { ManualClock } from "../platform/core/util.ts";
 import { createPlatform, type Platform } from "../platform/index.ts";
 import { ScriptedRuntime } from "../platform/runtime/runtime.ts";
@@ -8,7 +10,7 @@ import { defineTool, type Guardrail } from "../platform/tools/types.ts";
 export function testPlatform(): { p: Platform; clock: ManualClock; runtime: ScriptedRuntime } {
   const clock = new ManualClock();
   const runtime = new ScriptedRuntime();
-  const p = createPlatform({ config: { DATABASE_PATH: ":memory:", KILL_SWITCH: false }, clock, runtime, isolated: true });
+  const p = createPlatform({ config: { DATABASE_PATH: ":memory:", KILL_SWITCH: false }, clock, runtime, isolated: true, anchor: new MemoryAnchor(randomBytes(32)) });
   return { p, clock, runtime };
 }
 
