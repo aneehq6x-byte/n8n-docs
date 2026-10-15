@@ -1,0 +1,42 @@
+# Local / single-host deployment. Secrets come from .env (never committed).
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: umip
+      POSTGRES_USER: umip
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U umip"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+
+  migrate:
+    build: .
+    env_file: .env
+    environment:
+      UMIP_DATABASE_URL: postgresql+asyncpg://umip:${POSTGRES_PASSWORD}@db/umip
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db: {condition: service_healthy}
+
+  api:
+    build: .
+    env_file: .env
+    environment:
+      UMIP_DATABASE_URL: postgresql+asyncpg://umip:${POSTGRES_PASSWORD}@db/umip
+      UMIP_REDIS_URL: redis://redis:6379/0
+    ports: ["127.0.0.1:8000:8000"]  # expose publicly only via an HTTPS reverse proxy
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    restart: unless-stopped
+
+volumes:
+  pgdata: {}
+  redisdata: {}

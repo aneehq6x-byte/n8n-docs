@@ -1,0 +1,24 @@
+# Active once this folder becomes its own repository.
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: {POSTGRES_USER: umip, POSTGRES_PASSWORD: ci, POSTGRES_DB: umip_test}
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U umip" --health-interval 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.13"}
+      - run: pip install -e ".[dev]"
+      - run: ruff check umip tests --select F,E9
+      - run: pytest -q
+      - run: pytest -q
+        env: {UMIP_TEST_DATABASE_URL: "postgresql+asyncpg://umip:ci@localhost/umip_test"}
+      - run: alembic upgrade head && alembic check
+        env: {UMIP_DATABASE_URL: "postgresql+asyncpg://umip:ci@localhost/umip_test"}
