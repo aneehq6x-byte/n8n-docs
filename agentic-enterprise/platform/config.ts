@@ -30,6 +30,17 @@ const ConfigSchema = z.object({
   APPROVER_AUTH: z.enum(["signed", "trusted"]).default("signed"),
   /** true: الوكيل الجديد أو الذي تغيّر تعريفه ينتظر نشرًا بشريًا موقّعًا قبل أن يعمل. موصى به في الإنتاج. */
   AGENT_REQUIRE_DEPLOY: boolish,
+  /** mock: سير عمل وهمي. n8n: اتصال حقيقي بـ N8N_BASE_URL (يتطلب الأسرار والكتالوج). */
+  WORKFLOW_CONNECTOR: z.enum(["mock", "n8n"]).default("mock"),
+  N8N_BASE_URL: z.string().url().optional(),
+  /** سر HMAC للطلبات الصادرة إلى n8n (32 بايت على الأقل). */
+  N8N_OUTBOUND_SECRET: z.string().optional(),
+  /** سر HMAC للأحداث الواردة من n8n. مختلف عن الصادر، فتسريب أحدهما لا يكشف الآخر. */
+  N8N_INBOUND_SECRET: z.string().optional(),
+  N8N_WORKFLOWS_FILE: z.string().optional(),
+  N8N_HEADER_AUTH_NAME: z.string().optional(),
+  N8N_HEADER_AUTH_VALUE: z.string().optional(),
+  N8N_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
 });
 
 export type PlatformConfig = z.infer<typeof ConfigSchema>;

@@ -2,6 +2,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, wri
 import { dirname } from "node:path";
 import { parseArgs } from "node:util";
 import { ALL_AGENTS } from "../agents/index.ts";
+import { runControlCommand } from "./tenants-cli.ts";
 import { resolvePotentialMatch } from "../agents/compliance/human-actions.ts";
 import { loadConfig } from "../platform/config.ts";
 import { defaultFixtures, type Fixtures } from "../platform/connectors/mock/fixtures.ts";
@@ -69,6 +70,11 @@ const { positionals, values } = parseArgs({
     key: { type: "string" },
     out: { type: "string" },
     confirm: { type: "boolean", default: false },
+    name: { type: "string" },
+    scopes: { type: "string" },
+    originator: { type: "string" },
+    label: { type: "string" },
+    "n8n-secret-env": { type: "string" },
   },
 });
 const [cmd, ...args] = positionals;
@@ -93,6 +99,7 @@ function table(rows: Array<Record<string, unknown>>): void {
 }
 
 async function main(): Promise<void> {
+  if (cmd === "tenants" || cmd === "tokens") return runControlCommand(cmd, args, values);
   if (cmd === "reset-demo") {
     if (!values.confirm) throw new Error("reset-demo deletes local data; pass --confirm");
     for (const f of [config.DATABASE_PATH, `${config.DATABASE_PATH}-wal`, `${config.DATABASE_PATH}-shm`, STATE_FILE]) if (existsSync(f)) rmSync(f);

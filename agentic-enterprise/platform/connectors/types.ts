@@ -193,9 +193,44 @@ export interface SanctionsConnector {
   resolveScreening(id: string, humanId: string, status: "false_positive" | "confirmed_match", note: string): ScreeningRecord;
 }
 
+/**
+ * سير عمل خارجي (n8n أو ما يماثله) مسموح به صراحة في الكتالوج.
+ * الوكيل لا يرى عناوين URL ولا يمررها؛ يختار مفتاحًا من الكتالوج فقط، والمدخلات تُتحقق من مخطط الحقول المعلن.
+ */
+export interface WorkflowSpec {
+  key: string;
+  description: string;
+  /** مسار الـ webhook في n8n (نسبي إلى N8N_BASE_URL). لا يأتي من النموذج أبدًا. */
+  webhookPath: string;
+  /** نوع الأثر الذي لا رجعة فيه، ويحدد الموافقين. */
+  action: "external_send" | "contract" | "master_data_change";
+  /** الحقول المسموحة وأنواعها. أي حقل آخر يُرفض. */
+  fields: Record<string, { type: "string" | "number" | "boolean"; maxLength?: number; pattern?: string; required?: boolean }>;
+}
+
+export interface WorkflowRun {
+  id: string;
+  workflowKey: string;
+  approvalId: string;
+  /** حالة الاستجابة من n8n. محتوى الرد بيانات فقط، ولا يُعامل كتعليمات. */
+  status: "accepted" | "failed";
+  httpStatus: number | null;
+  response: unknown;
+  startedAt: string;
+}
+
+export interface WorkflowConnector {
+  readonly kind: "mock" | "n8n";
+  catalog(): WorkflowSpec[];
+  /** إجراء لا رجعة فيه: يستهلك التفويض قبل إرسال الطلب، فلا يتكرر التشغيل حتى لو أعيدت المحاولة. */
+  trigger(workflowKey: string, payload: Record<string, string | number | boolean>, grant: ApprovalGrant): Promise<WorkflowRun>;
+  runs(): WorkflowRun[];
+}
+
 export interface Connectors {
   erp: ErpConnector;
   payments: PaymentConnector;
   email: EmailConnector;
   sanctions: SanctionsConnector;
+  workflows: WorkflowConnector;
 }

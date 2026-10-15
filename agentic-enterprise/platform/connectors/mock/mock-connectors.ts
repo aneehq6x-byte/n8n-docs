@@ -15,7 +15,12 @@ import type {
   SanctionsConnector,
   ScreeningRecord,
   Supplier,
+  WorkflowConnector,
+  WorkflowRun,
+  WorkflowSpec,
 } from "../types.ts";
+import { findSpec, validateWorkflowPayload } from "../n8n/catalog.ts";
+import { DEFAULT_WORKFLOW_CATALOG } from "../n8n/default-catalog.ts";
 import { defaultFixtures, type Fixtures } from "./fixtures.ts";
 
 /**
@@ -31,7 +36,7 @@ export interface WriteRecord {
   args: unknown;
 }
 
-class FaultInjector {
+export class FaultInjector {
   private pending = new Set<string>();
   failNext(method: string): void {
     this.pending.add(method);
@@ -267,10 +272,16 @@ export interface MockConnectors extends Connectors {
   faults: FaultInjector;
 }
 
-export function createMockConnectors(gate: ApprovalGate, clock: Clock, fixtures: Fixtures = defaultFixtures()): MockConnectors {
+export function createMockConnectors(
+  gate: ApprovalGate,
+  clock: Clock,
+  fixtures: Fixtures = defaultFixtures(),
+  workflows?: (writes: WriteRecord[]) => WorkflowConnector,
+): MockConnectors {
   const writes: WriteRecord[] = [];
   const faults = new FaultInjector();
   return {
+    workflows: workflows ? workflows(writes) : new MockWorkflows(DEFAULT_WORKFLOW_CATALOG, gate, clock, writes, faults),
     erp: new MockErp(fixtures, gate, clock, writes, faults),
     payments: new MockPayments(fixtures, gate, clock, writes, faults),
     email: new MockEmail(fixtures, gate, writes),
@@ -288,4 +299,33 @@ function round2(n: number): number {
 /** توحيد أرقام المراجع لكشف التكرار: GOS-2029-0142 وgos 2029/0142 متطابقان. */
 export function normalizeRef(ref: string): string {
   return ref.toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/^0+/, "");
+}
+
+/** سير عمل وهمي: يطبق الكتالوج والتحقق واستهلاك التفويض نفسها، ويسجل التشغيل بدل الاتصال بـ n8n. */
+export class MockWorkflows implements WorkflowConnector {
+  readonly kind = "mock" as const;
+  private readonly log: WorkflowRun[] = [];
+  constructor(
+    private readonly specs: WorkflowSpec[],
+    private readonly gate: ApprovalGate,
+    private readonly clock: Clock,
+    private readonly writes: WriteRecord[],
+    private readonly faults: FaultInjector,
+  ) {}
+  catalog() {
+    return structuredClone(this.specs);
+  }
+  runs() {
+    return structuredClone(this.log);
+  }
+  async trigger(workflowKey: string, payload: Record<string, string | number | boolean>, grant: ApprovalGrant): Promise<WorkflowRun> {
+    const spec = findSpec(this.specs, workflowKey);
+    const clean = validateWorkflowPayload(spec, payload);
+    this.gate.redeem(grant, spec.action);
+    this.faults.check("workflows.trigger");
+    const run: WorkflowRun = { id: newId("wfr"), workflowKey, approvalId: grant.approvalId, status: "accepted", httpStatus: 200, response: { received: true }, startedAt: this.clock.now().toISOString() };
+    this.log.push(run);
+    this.writes.push({ connector: "workflows", method: "trigger", args: { workflowKey, payload: clean } });
+    return structuredClone(run);
+  }
 }

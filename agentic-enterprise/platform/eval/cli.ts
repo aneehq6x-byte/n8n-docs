@@ -54,7 +54,15 @@ async function main(): Promise<void> {
 
   console.log(`\nRunning ${scenarios.length} eval scenario(s) in ${mode} mode from ${files.length} file(s)\n`);
   const results: ScenarioResult[] = [];
+  // سقف تكلفة إجمالي للوضع الحي: يتوقف قبل أي سيناريو جديد إذا بلغت التكلفة المتراكمة السقف.
+  const maxTotalUsd = Number(process.env.EVAL_LIVE_MAX_TOTAL_USD ?? 5);
   for (const { s } of scenarios) {
+    const spent = results.reduce((n, r) => n + r.costUsd, 0);
+    if (mode === "live" && spent >= maxTotalUsd) {
+      console.error(`\nStopping: live cost $${spent.toFixed(4)} reached EVAL_LIVE_MAX_TOTAL_USD=${maxTotalUsd}. Remaining scenarios not run.`);
+      process.exitCode = 1;
+      break;
+    }
     const r = await runScenario(s, mode);
     results.push(r);
     const mark = r.skipped ? "SKIP" : r.passed ? "PASS" : "FAIL";
@@ -80,7 +88,7 @@ async function main(): Promise<void> {
 
   mkdirSync(join(ROOT, "reports"), { recursive: true });
   writeFileSync(join(ROOT, "reports", "eval-report.json"), JSON.stringify({ mode, generatedAt: new Date().toISOString(), results }, null, 2));
-  process.exit(failed > 0 ? 1 : 0);
+  process.exit(failed > 0 || process.exitCode === 1 ? 1 : 0);
 }
 
 main().catch((err) => {

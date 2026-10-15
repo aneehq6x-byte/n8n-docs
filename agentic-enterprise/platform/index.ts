@@ -4,7 +4,13 @@ import { ApprovalGate, defaultPolicy } from "./approval/approval-gate.ts";
 import { HmacFileAnchor, NoAnchor, parseAnchorKey, type AuditAnchor } from "./audit/anchor.ts";
 import { AuditLog } from "./audit/audit-log.ts";
 import type { Fixtures } from "./connectors/mock/fixtures.ts";
-import { createMockConnectors, type MockConnectors } from "./connectors/mock/mock-connectors.ts";
+import { createMockConnectors, type MockConnectors, type WriteRecord } from "./connectors/mock/mock-connectors.ts";
+import { loadCatalogFile } from "./connectors/n8n/catalog.ts";
+import { DEFAULT_WORKFLOW_CATALOG } from "./connectors/n8n/default-catalog.ts";
+import { N8nWorkflowConnector } from "./connectors/n8n/n8n-connector.ts";
+import { parseSecret } from "./connectors/n8n/signing.ts";
+import type { WorkflowConnector } from "./connectors/types.ts";
+import { N8nInbound } from "./integrations/n8n-inbound.ts";
 import { loadConfig, type PlatformConfig } from "./config.ts";
 import { openDatabase, type Database } from "./core/db.ts";
 import { DEFAULT_HUMANS, HumanDirectory } from "./core/directory.ts";
@@ -40,6 +46,8 @@ export interface Platform {
   runtime: AgentRuntime;
   keys: ApproverKeyRegistry;
   agents: AgentRegistry;
+  /** مستقبل أحداث n8n. null إذا لم يُضبط N8N_INBOUND_SECRET. */
+  inbound: N8nInbound | null;
   register(...agents: AgentDefinition[]): Platform;
   /** يبني إثبات قرار موقّعًا بمفاتيح التطوير (يتطلب devKeys). */
   signDecision(approvalId: string, humanId: string, decision: "approve" | "reject", comment?: string): DecisionProof;
@@ -68,6 +76,8 @@ export interface CreatePlatformOptions {
   forensic?: boolean;
   /** تثبيت audit صريح (للاختبارات). الافتراضي: ملف HMAC إن وُجد المفتاح، وإلا بلا تثبيت. */
   anchor?: AuditAnchor;
+  /** connector سير عمل صريح (للاختبارات). الافتراضي من WORKFLOW_CONNECTOR. */
+  workflows?: (deps: { gate: ApprovalGate; clock: Clock; writes: WriteRecord[] }) => WorkflowConnector;
   /** يولّد مفاتيح موافقين في الذاكرة ويسجلها (اختبارات وتطوير فقط). يتيح p.decide بتوقيع حقيقي. */
   devKeys?: boolean;
 }
@@ -92,7 +102,7 @@ export function createPlatform(opts: CreatePlatformOptions = {}): Platform {
   const memory = new MemoryStore(db, audit, clock);
   const killSwitch = new KillSwitch({ envFlag: config.KILL_SWITCH, ...(opts.isolated ? {} : { flagFile: config.KILL_SWITCH_FILE }) });
   if (opts.forensic && !audit.verify().valid) killSwitch.engage("forensic mode: audit chain broken", false);
-  const connectors = createMockConnectors(gate, clock, opts.fixtures);
+  const connectors = createMockConnectors(gate, clock, opts.fixtures, workflowFactory(opts.workflows, config, gate, clock));
   const runtime =
     opts.runtime ??
     (config.AGENT_RUNTIME === "live"
@@ -112,7 +122,12 @@ export function createPlatform(opts: CreatePlatformOptions = {}): Platform {
     registry: agentRegistry,
   });
 
+  const inbound = config.N8N_INBOUND_SECRET
+    ? new N8nInbound(db, audit, clock, orchestrator, parseSecret(config.N8N_INBOUND_SECRET, "N8N_INBOUND_SECRET"))
+    : null;
+
   const platform: Platform = {
+    inbound,
     config, db, clock, audit, gate, escalations, notifier, memory, killSwitch, directory, connectors, executor, orchestrator, runtime,
     keys,
     agents: agentRegistry,
@@ -151,3 +166,18 @@ export function createPlatform(opts: CreatePlatformOptions = {}): Platform {
 
 export { defineAgent, outcomeSchema, loadPrompt, type AgentDefinition, type AgentOutcome, type ToolGateway } from "./agent/agent-definition.ts";
 export { defineTool, allow, type Guardrail, type ToolContext, type ToolCallResult } from "./tools/types.ts";
+
+function workflowFactory(
+  explicit: CreatePlatformOptions["workflows"], config: PlatformConfig, gate: ApprovalGate, clock: Clock,
+): ((writes: WriteRecord[]) => WorkflowConnector) | undefined {
+  if (explicit) return (writes) => explicit({ gate, clock, writes });
+  if (config.WORKFLOW_CONNECTOR !== "n8n") return undefined;
+  if (!config.N8N_BASE_URL || !config.N8N_OUTBOUND_SECRET) throw new Error("WORKFLOW_CONNECTOR=n8n requires N8N_BASE_URL and N8N_OUTBOUND_SECRET");
+  const catalog = config.N8N_WORKFLOWS_FILE ? loadCatalogFile(config.N8N_WORKFLOWS_FILE) : DEFAULT_WORKFLOW_CATALOG;
+  const headerAuth = config.N8N_HEADER_AUTH_NAME && config.N8N_HEADER_AUTH_VALUE ? { name: config.N8N_HEADER_AUTH_NAME, value: config.N8N_HEADER_AUTH_VALUE } : undefined;
+  return () =>
+    new N8nWorkflowConnector(gate, clock, {
+      baseUrl: config.N8N_BASE_URL!, secret: parseSecret(config.N8N_OUTBOUND_SECRET!, "N8N_OUTBOUND_SECRET"), catalog, timeoutMs: config.N8N_TIMEOUT_MS,
+      ...(headerAuth ? { headerAuth } : {}),
+    });
+}

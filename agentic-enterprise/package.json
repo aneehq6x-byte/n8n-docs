@@ -10,8 +10,11 @@
     "typecheck": "tsc --noEmit",
     "test": "NODE_OPTIONS=--disable-warning=ExperimentalWarning vitest run",
     "eval": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx platform/eval/cli.ts",
+    "eval:live": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx platform/eval/cli.ts --live",
     "check": "npm run typecheck && npm run test && npm run eval",
     "ops": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx ops/cli.ts",
+    "serve": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx server/main.ts",
+    "e2e:console": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx scripts/console-e2e.ts",
     "mutation": "node scripts/mutation-test.mjs"
   },
   "dependencies": {
