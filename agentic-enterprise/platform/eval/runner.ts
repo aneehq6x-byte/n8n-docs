@@ -1,3 +1,4 @@
+import { ephemeralDbConfig } from "../core/db.ts";
 import { randomBytes } from "node:crypto";
 import { MemoryAnchor } from "../audit/anchor.ts";
 import { ManualClock } from "../core/util.ts";
@@ -22,7 +23,7 @@ export async function runScenario(s: EvalScenario, mode: EvalMode): Promise<Scen
   if (mode === "scripted") for (const [id, policy] of Object.entries(s.policyOverride ?? {})) scripted.override(id, policy);
 
   const p = createPlatform({
-    config: { DATABASE_PATH: ":memory:", KILL_SWITCH: false },
+    config: { ...ephemeralDbConfig(), KILL_SWITCH: false },
     clock: new ManualClock(),
     isolated: true,
     anchor: new MemoryAnchor(randomBytes(32)),

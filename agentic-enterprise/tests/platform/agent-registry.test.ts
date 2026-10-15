@@ -1,3 +1,4 @@
+import { ephemeralDbConfig } from "../../platform/core/db.ts";
 import { describe, expect, it } from "vitest";
 import { defineAgent } from "../../platform/agent/agent-definition.ts";
 import { definitionFingerprint } from "../../platform/agent/registry.ts";
@@ -87,7 +88,7 @@ describe("agent registry: lifecycle, pause and autonomy", () => {
   });
 
   it("with AGENT_REQUIRE_DEPLOY a changed definition waits for deployment; a paused agent stays paused", async () => {
-    const opts = { config: { DATABASE_PATH: ":memory:", KILL_SWITCH: false, AGENT_REQUIRE_DEPLOY: true }, clock: new ManualClock(), runtime: new ScriptedRuntime(), isolated: true, devKeys: true } as const;
+    const opts = { config: { ...ephemeralDbConfig(), KILL_SWITCH: false, AGENT_REQUIRE_DEPLOY: true }, clock: new ManualClock(), runtime: new ScriptedRuntime(), isolated: true, devKeys: true } as const;
     const p = createPlatform(opts);
     p.register(testAgent());
     expect(p.agents.find("test.agent")!.status).toBe("VALIDATED");

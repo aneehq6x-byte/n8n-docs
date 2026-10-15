@@ -15,7 +15,8 @@ import { API_SCOPES, ControlPlane, deriveTenantKey, type ApiScope } from "../pla
 export function runControlCommand(cmd: string, args: string[], v: Record<string, string | boolean | undefined>): void {
   const root = process.env.DATA_ROOT ?? "./data";
   const master = process.env.AUDIT_ANCHOR_KEY ? parseAnchorKey(process.env.AUDIT_ANCHOR_KEY) : undefined;
-  const cp = new ControlPlane(root, systemClock, master ? new HmacFileAnchor(join(root, "control-anchor.jsonl"), deriveTenantKey(master, "_control")) : undefined);
+  const url = process.env.DATABASE_URL;
+  const cp = new ControlPlane(root, systemClock, master ? new HmacFileAnchor(join(root, "control-anchor.jsonl"), deriveTenantKey(master, "_control")) : undefined, url ? { url } : {});
   const as = () => {
     if (typeof v.as !== "string" || !v.as) throw new Error("--as <operatorId> is required");
     return v.as;

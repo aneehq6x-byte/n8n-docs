@@ -1,3 +1,4 @@
+import { ephemeralDbConfig } from "../../platform/core/db.ts";
 import { randomBytes } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
 import { MemoryAnchor } from "../../platform/audit/anchor.ts";
@@ -23,7 +24,7 @@ afterEach(async () => {
 
 function platformWithN8n(baseUrl: string, clock = new ManualClock()): Platform {
   return createPlatform({
-    config: { DATABASE_PATH: ":memory:", KILL_SWITCH: false, N8N_INBOUND_SECRET: inSecret.toString("hex") },
+    config: { ...ephemeralDbConfig(), KILL_SWITCH: false, N8N_INBOUND_SECRET: inSecret.toString("hex") },
     clock, runtime: new ScriptedRuntime(), isolated: true, anchor: new MemoryAnchor(randomBytes(32)), devKeys: true,
     workflows: ({ gate }) => new N8nWorkflowConnector(gate, clock, { baseUrl, secret: outSecret, catalog: DEFAULT_WORKFLOW_CATALOG, timeoutMs: 3000 }),
   });

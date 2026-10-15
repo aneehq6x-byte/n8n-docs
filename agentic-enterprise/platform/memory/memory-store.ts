@@ -1,6 +1,6 @@
 import type { AuditLog } from "../audit/audit-log.ts";
 import type { Database } from "../core/db.ts";
-import { parseJson } from "../core/db.ts";
+import { dialectOf, parseJson } from "../core/db.ts";
 import { PlatformError } from "../core/errors.ts";
 import type { JsonValue } from "../core/types.ts";
 import type { Clock } from "../core/util.ts";
@@ -139,7 +139,11 @@ export class MemoryStore {
   /** حق المحو: يحذف كل ذاكرة مرتبطة بصاحب بيانات معيّن، ويوثق ذلك في audit log. */
   eraseSubject(subjectId: string, requestedBy: string): number {
     const res = this.db
-      .prepare("DELETE FROM memory WHERE EXISTS (SELECT 1 FROM json_each(memory.subject_ids) WHERE json_each.value = ?)")
+      .prepare(
+        dialectOf(this.db) === "postgres"
+          ? "DELETE FROM memory WHERE EXISTS (SELECT 1 FROM jsonb_array_elements_text(memory.subject_ids::jsonb) AS s(v) WHERE s.v = ?)"
+          : "DELETE FROM memory WHERE EXISTS (SELECT 1 FROM json_each(memory.subject_ids) WHERE json_each.value = ?)",
+      )
       .run(subjectId);
     const n = Number(res.changes);
     this.audit.append({ actor: { type: "human", id: requestedBy }, action: "memory.erase_subject", target: subjectId, outcome: "success", data: { deleted: n } });

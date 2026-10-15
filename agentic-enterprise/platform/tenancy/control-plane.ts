@@ -58,9 +58,9 @@ export class ControlPlane {
     readonly dataRoot: string,
     private readonly clock: Clock,
     anchor?: AuditAnchor,
-    dbPath = join(dataRoot, "control.db"),
+    db: { path?: string; url?: string; schema?: string } = {},
   ) {
-    this.db = openDatabase(dbPath);
+    this.db = openDatabase(db.path ?? join(dataRoot, "control.db"), db.url ? { url: db.url, schema: db.schema ?? "ae_control" } : {});
     this.audit = new AuditLog(this.db, clock, anchor);
     this.audit.assertIntact();
     this.db.exec(`
@@ -73,6 +73,11 @@ export class ControlPlane {
         created_by TEXT NOT NULL, created_at TEXT NOT NULL, revoked_at TEXT, last_used_at TEXT
       );
     `);
+  }
+
+  /** اسم الـ schema للمستأجر في PostgreSQL. */
+  static tenantSchema(tenantId: string, prefix = "ae_t_"): string {
+    return `${prefix}${TenantIdSchema.parse(tenantId).replace(/-/g, "_")}`;
   }
 
   tenantDir(tenantId: string): string {

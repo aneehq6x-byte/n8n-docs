@@ -85,7 +85,7 @@ export interface CreatePlatformOptions {
 export function createPlatform(opts: CreatePlatformOptions = {}): Platform {
   const config = loadConfig(process.env, opts.config);
   const clock = opts.clock ?? systemClock;
-  const db = openDatabase(config.DATABASE_PATH);
+  const db = openDatabase(config.DATABASE_PATH, config.DATABASE_URL ? { url: config.DATABASE_URL, schema: config.DATABASE_SCHEMA } : {});
   const anchor: AuditAnchor =
     opts.anchor ??
     (config.AUDIT_ANCHOR_KEY ? new HmacFileAnchor(config.AUDIT_ANCHOR_FILE, parseAnchorKey(config.AUDIT_ANCHOR_KEY)) : new NoAnchor());

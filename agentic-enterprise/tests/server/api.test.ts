@@ -20,8 +20,11 @@ afterEach(async () => {
 async function start(opts: { rateLimit?: { perSecond: number; burst: number } } = {}) {
   const root = mkdtempSync(join(tmpdir(), "ae-api-"));
   const clock = new ManualClock();
-  const control = new ControlPlane(root, clock);
-  const tenants = new TenantPlatforms(control, { clock, config: { KILL_SWITCH: false } });
+  // على PostgreSQL (TEST_POSTGRES_URL): schema تحكم وschemas مستأجرين فريدة لكل اختبار.
+  const pg = process.env.TEST_POSTGRES_URL;
+  const tag = `t_${randomBytes(4).toString("hex")}_`;
+  const control = new ControlPlane(root, clock, undefined, pg ? { url: pg, schema: `${tag}control` } : {});
+  const tenants = new TenantPlatforms(control, { clock, config: { KILL_SWITCH: false, ...(pg ? { DATABASE_URL: pg } : {}) }, schemaPrefix: tag });
   const lines: string[] = [];
   const server = createApi({ control, tenants, log: createLogger({ sink: (l) => lines.push(l) }), ...opts });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));

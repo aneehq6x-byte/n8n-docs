@@ -1,3 +1,4 @@
+import { ephemeralDbConfig } from "../platform/core/db.ts";
 import { describe, expect, it } from "vitest";
 import { ALL_AGENTS } from "../agents/index.ts";
 import { ManualClock } from "../platform/core/util.ts";
@@ -43,7 +44,7 @@ describe("ops metrics and alerts", () => {
   });
 
   it("warns when the audit log is not externally anchored", () => {
-    const p = createPlatform({ config: { DATABASE_PATH: ":memory:", KILL_SWITCH: false }, clock: new ManualClock(), runtime: new ScriptedRuntime(), isolated: true });
+    const p = createPlatform({ config: { ...ephemeralDbConfig(), KILL_SWITCH: false }, clock: new ManualClock(), runtime: new ScriptedRuntime(), isolated: true });
     expect(computeMetrics(p).alerts.map((a) => a.code)).toContain("AUDIT_ANCHOR_DISABLED");
   });
 

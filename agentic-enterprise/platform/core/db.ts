@@ -1,15 +1,33 @@
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { PostgresDatabase } from "./postgres.ts";
 
 /**
- * غلاف رفيع حول node:sqlite المدمج في Node 22، فلا توجد اعتماديات أصلية (native) تحتاج بناء.
- * الوصول المتزامن من عدة عمليات مدعوم عبر WAL مع busy_timeout، وكل كتابة تقرأ ثم تعدّل تتم في transaction().
- * الانتقال إلى PostgreSQL مخطط (docs/architecture/TARGET_ARCHITECTURE.md)، والواجهات لا تتغير.
+ * واجهة قاعدة البيانات التي تستخدمها المنصة: مجموعة جزئية متزامنة من node:sqlite.
+ * تنفيذان:
+ * - SQLite (node:sqlite المدمج، بلا اعتماديات أصلية): ملف واحد بنمط WAL. الافتراضي.
+ * - PostgreSQL (DATABASE_URL): schema لكل مستأجر، عبر محوّل متزامن (postgres.ts، ADR-013).
+ * كل كتابة تقرأ ثم تعدّل تتم في transaction()، وتعطي الدلالات نفسها في الاثنين: كاتب واحد لكل قاعدة/schema.
  */
-export type Database = DatabaseSync;
+export interface Statement {
+  run(...params: any[]): { changes: number | bigint }; // eslint-disable-line @typescript-eslint/no-explicit-any
+  get(...params: any[]): Record<string, unknown> | undefined; // eslint-disable-line @typescript-eslint/no-explicit-any
+  all(...params: any[]): Array<Record<string, unknown>>; // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+export interface Database {
+  prepare(sql: string): Statement;
+  exec(sql: string): void;
+  close(): void;
+  readonly dialect?: "postgres";
+}
 
-export function openDatabase(path: string): Database {
+export type Dialect = "sqlite" | "postgres";
+export const dialectOf = (db: Database): Dialect => (db.dialect === "postgres" ? "postgres" : "sqlite");
+
+/** يفتح SQLite لمسار ملف أو :memory:، أو PostgreSQL لعنوان postgres:// مع schema. */
+export function openDatabase(path: string, opts: { url?: string; schema?: string } = {}): Database {
+  if (opts.url) return new PostgresDatabase(opts.url, opts.schema ?? "public");
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
   const db = new DatabaseSync(path);
   // busy_timeout أولًا: تحويل الوضع إلى WAL يحتاج قفلًا، وبدون مهلة انتظار تفشل العملية الثانية فورًا (R2).
@@ -67,7 +85,12 @@ export function afterCommit(db: Database, fn: () => void): void {
  * يتيح فتح قواعد أُنشئت بإصدار أقدم دون فقدان أي شيء.
  */
 export function ensureColumns(db: Database, table: string, columns: Record<string, string>): string[] {
-  const existing = new Set((db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map((c) => c.name));
+  const existing = new Set(
+    (dialectOf(db) === "postgres"
+      ? db.prepare("SELECT column_name AS name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = ?").all(table)
+      : db.prepare(`PRAGMA table_info(${table})`).all()
+    ).map((c) => String(c.name)),
+  );
   const added: string[] = [];
   for (const [name, type] of Object.entries(columns)) {
     if (existing.has(name)) continue;
@@ -79,4 +102,14 @@ export function ensureColumns(db: Database, table: string, columns: Record<strin
 
 export function parseJson<T>(text: unknown): T {
   return JSON.parse(String(text)) as T;
+}
+
+/**
+ * إعداد قاعدة مؤقتة معزولة للاختبارات وevals: SQLite في الذاكرة، أو schema جديد في PostgreSQL
+ * إذا ضُبط TEST_POSTGRES_URL (فتعمل الاختبارات نفسها على المحركين).
+ */
+export function ephemeralDbConfig(): { DATABASE_PATH: string; DATABASE_URL?: string; DATABASE_SCHEMA?: string } {
+  const url = process.env.TEST_POSTGRES_URL;
+  if (!url) return { DATABASE_PATH: ":memory:" };
+  return { DATABASE_PATH: ":memory:", DATABASE_URL: url, DATABASE_SCHEMA: `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}` };
 }

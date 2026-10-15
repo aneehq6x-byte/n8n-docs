@@ -14,6 +14,10 @@ const ConfigSchema = z.object({
   AGENT_MODEL: z.string().default("claude-opus-5-5"),
   AGENT_RUNTIME: z.enum(["scripted", "live"]).default("scripted"),
   DATABASE_PATH: z.string().default("./data/enterprise.db"),
+  /** postgres://… لاستخدام PostgreSQL بدل SQLite. الاتصال يحمل كلمة المرور، فيأتي من مدير الأسرار. */
+  DATABASE_URL: z.string().regex(/^postgres(ql)?:\/\//).optional(),
+  /** الـ schema في PostgreSQL (يُحدد تلقائيًا لكل مستأجر في الخادم). */
+  DATABASE_SCHEMA: z.string().regex(/^[a-z_][a-z0-9_]{0,62}$/).default("public"),
   KILL_SWITCH: boolish,
   KILL_SWITCH_FILE: z.string().default("./data/KILL_SWITCH"),
   APPROVAL_TTL_HOURS: z.coerce.number().positive().default(24),

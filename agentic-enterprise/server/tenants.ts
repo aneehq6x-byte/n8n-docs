@@ -7,7 +7,7 @@ import { defaultFixtures, type Fixtures } from "../platform/connectors/mock/fixt
 import { PlatformError } from "../platform/core/errors.ts";
 import type { Clock } from "../platform/core/util.ts";
 import { createPlatform, type CreatePlatformOptions, type Platform } from "../platform/index.ts";
-import { deriveTenantKey, type ControlPlane } from "../platform/tenancy/control-plane.ts";
+import { ControlPlane, deriveTenantKey } from "../platform/tenancy/control-plane.ts";
 
 /**
  * يفتح منصة معزولة لكل مستأجر عند أول طلب ويحتفظ بها مفتوحة:
@@ -19,7 +19,7 @@ export class TenantPlatforms {
 
   constructor(
     private readonly control: ControlPlane,
-    private readonly base: { config?: Partial<PlatformConfig>; clock?: Clock; anchorMasterKey?: Buffer; extra?: Partial<CreatePlatformOptions> } = {},
+    private readonly base: { config?: Partial<PlatformConfig>; clock?: Clock; anchorMasterKey?: Buffer; extra?: Partial<CreatePlatformOptions>; schemaPrefix?: string } = {},
   ) {}
 
   get(tenantId: string): Platform {
@@ -40,6 +40,7 @@ export class TenantPlatforms {
       config: {
         ...this.base.config,
         DATABASE_PATH: join(dir, "enterprise.db"),
+        DATABASE_SCHEMA: ControlPlane.tenantSchema(tenantId, this.base.schemaPrefix),
         KILL_SWITCH_FILE: join(dir, "KILL_SWITCH"),
         AUDIT_ANCHOR_FILE: join(dir, "audit-anchor.jsonl"),
         ...(inboundSecret ? { N8N_INBOUND_SECRET: inboundSecret } : { N8N_INBOUND_SECRET: undefined }),

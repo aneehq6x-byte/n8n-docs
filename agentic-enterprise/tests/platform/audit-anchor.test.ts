@@ -1,3 +1,4 @@
+import { dialectOf, ephemeralDbConfig } from "../../platform/core/db.ts";
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -23,7 +24,7 @@ function setup(n = 20) {
 
 /** المهاجم يملك القاعدة: يُسقط الـ triggers ويعيد حساب السلسلة بعد تعديل سجل. */
 function rewriteChain(db: ReturnType<typeof openDatabase>, mutateSeq: number) {
-  db.exec("DROP TRIGGER IF EXISTS audit_no_update");
+  db.exec(dialectOf(db) === "postgres" ? "DROP TRIGGER IF EXISTS audit_no_update_delete ON audit_log" : "DROP TRIGGER IF EXISTS audit_no_update");
   let prev = "0".repeat(64);
   for (const r of db.prepare("SELECT * FROM audit_log ORDER BY seq").all() as Array<Record<string, any>>) {
     const actorId = r.seq === mutateSeq ? "u-attacker" : r.actor_id;
@@ -102,7 +103,7 @@ describe("external audit anchoring", () => {
 
   it("integrity failure blocks approvals, executions and queue runs, and engages the emergency stop", async () => {
     const anchor = new MemoryAnchor(randomBytes(32));
-    const p = createPlatform({ config: { DATABASE_PATH: ":memory:", KILL_SWITCH: false }, clock: new ManualClock(), runtime: new ScriptedRuntime(), isolated: true, anchor });
+    const p = createPlatform({ config: { ...ephemeralDbConfig(), KILL_SWITCH: false }, clock: new ManualClock(), runtime: new ScriptedRuntime(), isolated: true, anchor });
     p.register(testAgent({ policy: async ({ tools }) => (await tools.call("send_email", { to: "a@example.com", body: "x" }), done("waiting", { status: "needs_approval" })) }));
     const t = p.orchestrator.submit({ type: "test.run", input: {}, originator: "u-requester" });
     await p.orchestrator.drain();

@@ -5,5 +5,6 @@ export default defineConfig({
     include: ["tests/**/*.test.ts", "agents/**/*.test.ts", "ops/**/*.test.ts"],
     environment: "node",
     pool: "forks",
+    globalSetup: ["tests/pg-global-setup.ts"],
   },
 });

@@ -24,7 +24,10 @@ const master = config.AUDIT_ANCHOR_KEY ? parseAnchorKey(config.AUDIT_ANCHOR_KEY)
 if (config.AUDIT_ANCHOR_REQUIRED && !master) throw new Error("AUDIT_ANCHOR_REQUIRED=true but AUDIT_ANCHOR_KEY is not set");
 if (!master) log.log("warn", "audit anchoring disabled: set AUDIT_ANCHOR_KEY (and AUDIT_ANCHOR_REQUIRED=true in production)");
 
-const control = new ControlPlane(DATA_ROOT, systemClock, master ? new HmacFileAnchor(join(DATA_ROOT, "control-anchor.jsonl"), deriveTenantKey(master, "_control")) : undefined);
+const control = new ControlPlane(
+  DATA_ROOT, systemClock, master ? new HmacFileAnchor(join(DATA_ROOT, "control-anchor.jsonl"), deriveTenantKey(master, "_control")) : undefined,
+  config.DATABASE_URL ? { url: config.DATABASE_URL } : {},
+);
 const tenants = new TenantPlatforms(control, { ...(master ? { anchorMasterKey: master } : {}) });
 const server = createApi({ control, tenants, log });
 

@@ -1,4 +1,4 @@
-import type { DatabaseSync } from "node:sqlite";
+import type { Database } from "../core/db.ts";
 import { z } from "zod";
 import type { AuditLog } from "../audit/audit-log.ts";
 import { MAX_SKEW_SECONDS, NONCE_HEADER, SIGNATURE_HEADER, TIMESTAMP_HEADER, verifySignature } from "../connectors/n8n/signing.ts";
@@ -42,14 +42,14 @@ export const MAX_INBOUND_BYTES = 16 * 1024;
 
 export class N8nInbound {
   constructor(
-    private readonly db: DatabaseSync,
+    private readonly db: Database,
     private readonly audit: AuditLog,
     private readonly clock: Clock,
     private readonly orchestrator: Pick<Orchestrator, "submit">,
     private readonly secret: Buffer,
     private readonly routes: InboundRoute[] = DEFAULT_INBOUND_ROUTES,
   ) {
-    db.exec(`CREATE TABLE IF NOT EXISTS inbound_nonces (nonce TEXT PRIMARY KEY, source TEXT NOT NULL, received_at TEXT NOT NULL)`);
+    db.exec(`CREATE TABLE IF NOT EXISTS inbound_nonces (nonce TEXT PRIMARY KEY, source TEXT NOT NULL, received_at TEXT NOT NULL);`);
   }
 
   /** يعيد المهمة المنشأة (أو الموجودة لنفس eventId). يرمي AUTHENTICATION_FAILED أو INVALID_INPUT أو NOT_FOUND. */

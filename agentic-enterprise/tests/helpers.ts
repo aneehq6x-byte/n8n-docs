@@ -1,3 +1,4 @@
+import { ephemeralDbConfig } from "../platform/core/db.ts";
 import { z } from "zod";
 import { defineAgent, outcomeSchema, type AgentDefinition, type AgentOutcome, type ReferencePolicy } from "../platform/agent/agent-definition.ts";
 import { randomBytes } from "node:crypto";
@@ -10,7 +11,7 @@ import { defineTool, type Guardrail } from "../platform/tools/types.ts";
 export function testPlatform(): { p: Platform; clock: ManualClock; runtime: ScriptedRuntime } {
   const clock = new ManualClock();
   const runtime = new ScriptedRuntime();
-  const p = createPlatform({ config: { DATABASE_PATH: ":memory:", KILL_SWITCH: false }, clock, runtime, isolated: true, anchor: new MemoryAnchor(randomBytes(32)), devKeys: true });
+  const p = createPlatform({ config: { ...ephemeralDbConfig(), KILL_SWITCH: false }, clock, runtime, isolated: true, anchor: new MemoryAnchor(randomBytes(32)), devKeys: true });
   return { p, clock, runtime };
 }
 

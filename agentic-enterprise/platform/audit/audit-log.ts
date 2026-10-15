@@ -1,5 +1,5 @@
 import type { Database } from "../core/db.ts";
-import { afterCommit, parseJson, transaction } from "../core/db.ts";
+import { dialectOf, afterCommit, parseJson, transaction } from "../core/db.ts";
 import { NoAnchor, type AuditAnchor } from "./anchor.ts";
 import { PlatformError } from "../core/errors.ts";
 import type { Actor, JsonObject } from "../core/types.ts";
@@ -74,11 +74,24 @@ export class AuditLog {
       );
       CREATE INDEX IF NOT EXISTS idx_audit_task ON audit_log(task_id);
       CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_log(action);
-      CREATE TRIGGER IF NOT EXISTS audit_no_update BEFORE UPDATE ON audit_log
-        BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END;
-      CREATE TRIGGER IF NOT EXISTS audit_no_delete BEFORE DELETE ON audit_log
-        BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END;
     `);
+    if (dialectOf(db) === "postgres")
+      // في PostgreSQL يشمل المنع TRUNCATE أيضًا، وهو مسار حذف لا تمر به محفزات DELETE.
+      db.exec(`
+        CREATE OR REPLACE FUNCTION audit_append_only() RETURNS trigger LANGUAGE plpgsql AS $fn$
+          BEGIN RAISE EXCEPTION 'audit_log is append-only'; END $fn$;
+        DROP TRIGGER IF EXISTS audit_no_update_delete ON audit_log;
+        CREATE TRIGGER audit_no_update_delete BEFORE UPDATE OR DELETE ON audit_log FOR EACH ROW EXECUTE FUNCTION audit_append_only();
+        DROP TRIGGER IF EXISTS audit_no_truncate ON audit_log;
+        CREATE TRIGGER audit_no_truncate BEFORE TRUNCATE ON audit_log FOR EACH STATEMENT EXECUTE FUNCTION audit_append_only();
+      `);
+    else
+      db.exec(`
+        CREATE TRIGGER IF NOT EXISTS audit_no_update BEFORE UPDATE ON audit_log
+          BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END;
+        CREATE TRIGGER IF NOT EXISTS audit_no_delete BEFORE DELETE ON audit_log
+          BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END;
+      `);
   }
 
   append(input: AuditEntryInput): AuditEntry {

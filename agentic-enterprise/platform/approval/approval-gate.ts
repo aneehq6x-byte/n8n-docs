@@ -367,7 +367,7 @@ export class ApprovalGate {
   }
 
   recordResult(id: string, result: JsonObject, failed = false): void {
-    this.db.prepare("UPDATE approvals SET result = ?, status = CASE WHEN ? THEN 'execution_failed' ELSE status END WHERE id = ?").run(JSON.stringify(result), failed ? 1 : 0, id);
+    this.db.prepare("UPDATE approvals SET result = ?, status = CASE WHEN ? = 1 THEN 'execution_failed' ELSE status END WHERE id = ?").run(JSON.stringify(result), failed ? 1 : 0, id);
   }
 
   /** يُستدعى دوريًا: يحوّل الطلبات المنتهية إلى expired ويعيدها لتُصعَّد. */
