@@ -53,14 +53,28 @@
 - `AUDIT_ANCHOR_REQUIRED` لإلزام التثبيت في الإنتاج.
 - الوكلاء في الوضع الحي بلا أدوات Claude Code المدمجة (`tools: []`)، وبلا إعدادات من القرص (`settingSources: []`).
 
-## 5. ضوابط مخططة (غير منفّذة)
+## 5. الواجهات الخارجية وتعدد المستأجرين
+
+| الضابط | التنفيذ | الدليل |
+|--------|---------|--------|
+| رموز API مقيدة النطاق، ومخزنة كـ hash، وتُلغى فورًا | `platform/tenancy/control-plane.ts` | `api.test.ts`، وطفرات `api:` |
+| المستأجر يُؤخذ من الرمز، وقاعدة أو schema منفصلة لكل مستأجر | `server/tenants.ts`، و`ControlPlane.tenantSchema` | `api.test.ts` (عزل) |
+| الموافقة عبر API تتطلب توقيع الإنسان، لا الرمز | `server/api.ts` → `decideApproval(…, proof)` | `api.test.ts` (unsigned → 401، ومفتاح آخر → 401) |
+| حد حجم الجسم، وJSON فقط، وحد معدل لكل رمز، ورؤوس أمان، وأخطاء بلا تفاصيل داخلية | `server/api.ts` | `api.test.ts` |
+| سجلات تشغيل منظمة مع requestId وحجب أسماء الحقول الحساسة | `server/log.ts` | `api.test.ts` |
+| n8n صادر: كتالوج، وموافقة، واستهلاك قبل الإرسال، وHMAC، وhttps | `platform/connectors/n8n/` | `n8n.test.ts`، و`e2e:n8n`، وطفرات `n8n:` |
+| n8n وارد: HMAC لكل مستأجر، ونافذة زمنية، وnonce، ومعرّفات فقط | `platform/integrations/n8n-inbound.ts` | الاختبارات نفسها |
+| وحدة التحكم: textContent فقط، وCSP، وتوقيع داخل المتصفح | `server/console.ts` | `e2e:console` |
+| PostgreSQL: محفزات تمنع UPDATE وDELETE وTRUNCATE على audit، وكاتب واحد لكل مستأجر | `platform/core/postgres.ts`، و`audit-log.ts` | `test:pg` (112 اختبارًا و34 eval) |
+
+## 6. ضوابط مخططة (غير منفّذة)
 
 | الضابط | الأولوية | المرجع |
 |--------|----------|--------|
-| فحص الأسرار وSBOM وتدقيق الاعتماديات في CI | P1 | `IMPLEMENTATION_ROADMAP.md` |
+| فحص الأسرار وSBOM وتدقيق الاعتماديات في CI | P1 | مسودة في `ci/github-workflow.yml` (ADR-016) |
+| انتهاء صلاحية تلقائي لرموز API | P2 | T18 |
 | ميزانيات تكلفة تراكمية مفروضة لكل وكيل | P1 | T13 |
 | SSO أو WebAuthn لمفاتيح الموافقين | P2 | ADR-009 |
-| عزل المستأجرين | P2 | T15 |
 | تصدير رأس audit لطرف ثالث | P2 | ADR-008 |
 | تشفير القاعدة عند السكون | P2 | SC-28 |
 | قيود اتصال الشبكة الصادرة (egress) | P2 | SC-7 |

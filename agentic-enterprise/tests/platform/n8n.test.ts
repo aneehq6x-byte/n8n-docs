@@ -103,6 +103,20 @@ describe("n8n outbound: approval-gated, signed, exactly once", () => {
     expect(n8n.received).toHaveLength(0);
   });
 
+  it("the connector itself re-validates the payload before redeeming or sending (defence in depth)", async () => {
+    const n8n = await startFakeN8n();
+    closers.push(n8n.close);
+    const redeemed: string[] = [];
+    const gate = { redeem: (g: { approvalId: string }) => void redeemed.push(g.approvalId) } as unknown as Platform["gate"];
+    const c = new N8nWorkflowConnector(gate, new ManualClock(), { baseUrl: n8n.baseUrl, secret: outSecret, catalog: DEFAULT_WORKFLOW_CATALOG });
+    const grant = { approvalId: "apr_x", nonce: "n", actionType: "external_send", payloadHash: "h" } as never;
+    await expect(c.trigger("notify_supplier_remittance", { supplierId: "sup-001", invoiceId: "INV-9001", url: "https://evil.example" }, grant)).rejects.toThrow(/unknown field/);
+    await expect(c.trigger("notify_supplier_remittance", { supplierId: "sup-001;rm", invoiceId: "INV-9001" }, grant)).rejects.toThrow(/pattern/);
+    await expect(c.trigger("not_in_catalog", {}, grant)).rejects.toThrow(/approved catalog/);
+    expect(redeemed).toEqual([]);
+    expect(n8n.received).toHaveLength(0);
+  });
+
   it("an n8n failure after approval escalates and is not retried with the same grant", async () => {
     const n8n = await startFakeN8n(() => ({ status: 500, body: { error: "boom" } }));
     closers.push(n8n.close);

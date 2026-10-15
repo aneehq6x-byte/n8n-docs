@@ -10,8 +10,11 @@
 | 1 | تحليل المجالات: [`docs/domains.md`](docs/domains.md) | ✅ |
 | 2 | البنية المشتركة: [`platform/`](platform/README.md) | ✅ |
 | 3 | الوكلاء: [المشتريات](agents/procurement/README.md)، [المالية](agents/finance/README.md)، [الامتثال](agents/compliance/README.md) | ✅ |
-| 4 | التكامل والتشغيل: [`scenarios/`](scenarios/evals/procure-to-pay.eval.ts)، [`ops/`](ops/cli.ts)، [`docs/operations/RUNBOOK.md`](docs/operations/RUNBOOK.md) | قيد المراجعة |
-| 5 | التقرير النهائي | لم تبدأ |
+| 4 | التكامل والتشغيل: [`scenarios/`](scenarios/evals/procure-to-pay.eval.ts)، [`ops/`](ops/cli.ts)، [`docs/operations/RUNBOOK.md`](docs/operations/RUNBOOK.md) | ✅ |
+| 5 | التقوية المؤسسية: [`docs/architecture/CURRENT_STATE.md`](docs/architecture/CURRENT_STATE.md) | ✅ (P0 وP1 الأساسية) |
+| 6 | الأساس المؤسسي: PostgreSQL، وتعدد المستأجرين، وAPI، ووحدة التحكم، وn8n | ✅ ([ADR-013 إلى ADR-016](docs/architecture/DECISIONS.md)) |
+| — | الوضع الحي بنموذج فعلي | ⛔ ينتظر `ANTHROPIC_API_KEY` |
+| — | CI | مسودة غير مفعّلة: [`ci/`](ci/README.md) |
 
 ## الوكلاء
 
@@ -35,7 +38,9 @@ npm ci
 npm run check        # typecheck ثم unit tests ثم evals (حتمي، بلا مفتاح API)
 npm run mutation     # اختبار الطفرات: كل حماية يكشف تعطيلَها اختبارٌ واحد على الأقل
 npm run ops -- status
-npm run eval -- --live   # الوضع الحي بـ Claude، يتطلب ANTHROPIC_API_KEY
+npm run serve        # خادم API + عامل خلفي + وحدة تحكم على http://127.0.0.1:8080/console
+TEST_POSTGRES_URL=postgres://… npm run test:pg   # الاختبارات نفسها على PostgreSQL
+npm run eval:live    # الوضع الحي بـ Claude، يتطلب ANTHROPIC_API_KEY، بسقف تكلفة
 ```
 
 المتطلبات: Node 22.13 أو أحدث، لأن المنصة تستخدم `node:sqlite` المدمج. التشغيل والمراقبة والإيقاف الطارئ في [`docs/operations/RUNBOOK.md`](docs/operations/RUNBOOK.md).
@@ -47,9 +52,12 @@ platform/        البنية المشتركة: orchestrator، وapproval gate،
 agents/          الوكلاء حسب المجال، ولكل وكيل: README، وsystem_prompt، وtools، وmemory، وguardrails، وcoordination، وagent.ts، وevals
   common/        أدوات مشتركة بين المجالات
 scenarios/       السيناريوهات الشاملة عبر الوكلاء الخمسة
-ops/             أداة المشغّل (CLI) والمؤشرات والتنبيهات
-scripts/         اختبار الطفرات
-docs/            تحليل المجالات ودليل التشغيل
+ops/             أداة المشغّل (CLI)، والمستأجرون والرموز، والمؤشرات والتنبيهات
+server/          HTTP API، والعامل الخلفي، ووحدة التحكم، والسجلات المنظمة
+integrations/    سير عمل n8n الجاهزة للاستيراد ودليلها
+ci/              مسودة CI (غير مفعّلة)
+scripts/         اختبار الطفرات، واختبارات المتصفح وn8n الحقيقية
+docs/            المجالات، والبنية والقرارات، والأمن، والتشغيل، والاختبار، والخارطة
 tests/           اختبارات المنصة
 ```
 

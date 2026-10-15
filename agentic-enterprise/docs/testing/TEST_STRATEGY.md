@@ -19,7 +19,12 @@
 | سلوك الوكلاء | eval harness (scripted) | `npm run eval` | 5 سيناريوهات لكل وكيل، منها هجومية |
 | شامل (end-to-end) | eval harness | `npm run eval -- --filter=e2e` | السلسلة كاملة، والاحتيال، والعقوبات، والإيقاف الطارئ |
 | فعالية الاختبارات | `scripts/mutation-test.mjs` | `npm run mutation` | كل حماية تُعطَّل على حدة، ويجب أن يفشل اختبار |
-| الوضع الحي | eval harness مع Claude | `npm run eval -- --live` | سلوك النموذج الفعلي. **لم يُشغَّل بعد** لغياب المفتاح |
+| المحركان | الاختبارات نفسها على PostgreSQL | `TEST_POSTGRES_URL=… npm run test:pg` (ومعه `npm run eval`) | كل ما سبق، بما فيه التزامن متعدد العمليات، على schema حقيقي |
+| HTTP API وتعدد المستأجرين | vitest مع خادم HTTP حقيقي | ضمن `npm test` (`tests/server/`) | المصادقة، والنطاقات، والعزل، والتعليق، والحدود، والموافقة الموقّعة عبر HTTP |
+| n8n (شبكة) | خادم محلي يحاكي webhook | ضمن `npm test` | التوقيع، والاستهلاك قبل الإرسال، والفشل، والوارد |
+| n8n (حقيقي) | n8n 2.43.6 فعلي | `npm run e2e:n8n` | الاتجاهان مع n8n الحقيقي، والتحقق داخل n8n |
+| المتصفح | Chromium عبر Playwright | `npm run e2e:console` | توقيع WebCrypto Ed25519 يقبله الخادم، وXSS لا يُنفذ |
+| الوضع الحي | eval harness مع Claude | `npm run eval:live` | سلوك النموذج الفعلي. **لم يُشغَّل بعد** لغياب المفتاح |
 
 ## 3. الحالات الخاصة المطلوبة وأين تُختبر
 

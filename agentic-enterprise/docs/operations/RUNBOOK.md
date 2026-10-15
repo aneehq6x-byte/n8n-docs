@@ -45,6 +45,14 @@ npm run check                 # يجب أن ينجح قبل أي تشغيل: typ
 | `AUDIT_ANCHOR_KEY` | (فارغ) | مفتاح HMAC (≥ 32 بايت) لتثبيت audit خارج القاعدة. من مدير الأسرار فقط |
 | `AUDIT_ANCHOR_FILE` | `./data/audit-anchor.jsonl` | ملف التثبيت. في الإنتاج على وحدة تخزين منفصلة (append-only أو WORM) |
 | `AUDIT_ANCHOR_REQUIRED` | `false` | **اجعله `true` في الإنتاج:** يرفض الإقلاع دون مفتاح، فلا يمكن تعطيل التثبيت بحذف المتغير |
+| `DATABASE_URL` | (فارغ) | `postgres://…` لاستخدام PostgreSQL. في الخادم يأخذ كل مستأجر schema `ae_t_<id>`، ومستوى التحكم `ae_control` |
+| `DATA_ROOT` | `./data` | جذر بيانات الخادم: `control.db`، و`tenants/<id>/` (القاعدة، والإيقاف، والتثبيت) |
+| `HOST` / `PORT` | `127.0.0.1` / `8080` | عنوان الخادم. ضعه خلف reverse proxy مع TLS، ولا تعرضه مباشرة |
+| `WORKER_INTERVAL_MS` | `2000` | دورة العامل الخلفي. `0` يعطّل العامل (نسخة API فقط) |
+| `WORKFLOW_CONNECTOR` | `mock` | `n8n` للاتصال الحقيقي. التفاصيل في [`integrations/n8n/README.md`](../../integrations/n8n/README.md) |
+| `N8N_BASE_URL` / `N8N_OUTBOUND_SECRET` / `N8N_WORKFLOWS_FILE` | (فارغ) | عنوان n8n، وسر التوقيع الصادر، وكتالوج سير العمل المسموح |
+| `LOG_LEVEL` | `info` | سجلات JSON إلى stdout |
+| `EVAL_LIVE_MAX_TOTAL_USD` | `5` | سقف التكلفة الإجمالي لتشغيل `eval:live` |
 
 ---
 
@@ -93,6 +101,30 @@ export AUDIT_ANCHOR_KEY=<من مدير الأسرار>  AUDIT_ANCHOR_FILE=/mnt/a
 npm run ops -- audit verify      # يجب أن يظهر: anchoring: file, pending 0
 ```
 فعّله من بداية قاعدة بيانات جديدة. الأحداث المسجلة قبل التفعيل بلا تثبيت، وسيعلنها التحقق تلاعبًا.
+
+### 2.4.1 الخادم: API وعامل ووحدة تحكم
+
+```bash
+# مرة واحدة لكل مستأجر (على الخادم، بصلاحية DATA_ROOT)
+npm run ops -- tenants create acme --name "Acme Co" --as u-ops [--n8n-secret-env ACME_N8N_INBOUND_SECRET]
+npm run ops -- tokens issue acme --scopes tasks:write,tasks:read,approvals:read,approvals:decide,ops:read \
+  --originator u-requester --label "procurement portal" --as u-ops      # يُعرض مرة واحدة؛ احفظه في مدير الأسرار
+npm run serve                                                             # API + عامل خلفي، وسجلات JSON
+```
+
+| المسار | النطاق | ملاحظة |
+|--------|--------|--------|
+| `GET /healthz`، `GET /readyz` | — | الجاهزية تفشل (503) إذا تلفت سلسلة audit لأي مستأجر محمّل |
+| `POST /v1/tasks` | `tasks:write` | `{type, input, idempotencyKey?}`. المنشئ من الرمز |
+| `GET /v1/tasks[/:id]` | `tasks:read` | |
+| `GET /v1/approvals?status=pending` | `approvals:read` | الملخص وhash الحمولة، بلا الحمولة الخام |
+| `POST /v1/approvals/:id/decision` | `approvals:decide` | **يتطلب `proof` موقّعًا من الإنسان** |
+| `GET /v1/escalations`، `GET /v1/metrics` | `ops:read` | |
+| `POST /v1/tenants/:tenant/n8n/:route` | HMAC | أحداث n8n الواردة |
+| `GET /console` | — | وحدة تحكم ويب. الرمز يُدخل يدويًا، والتوقيع داخل المتصفح |
+
+- **تعليق مستأجر:** `npm run ops -- tenants suspend acme --as u-ops --note "…"`. كل رموزه تتوقف فورًا.
+- **إلغاء رمز:** `npm run ops -- tokens revoke <tokenId> --as u-ops --note "…"`.
 
 ### 2.5 التحويل إلى الوضع الحي
 
@@ -288,7 +320,10 @@ npm run ops -- audit task <id>   # كل ما جرى في مهمة
 | التحقق من audit | يوميًا، وقبل أي رفع إيقاف | `ops audit verify` |
 | نسخ احتياطي | يوميًا | القاعدة وملف التثبيت معًا. الإجراء في [`DISASTER_RECOVERY.md`](DISASTER_RECOVERY.md) |
 | اختبار الطفرات | مع كل تغيير في الحواجز أو التقييمات | `npm run mutation`، والمطلوب 0 missed |
-| evals حية | أسبوعيًا، ومع أي تغيير في النموذج أو البروموت | `npm run eval -- --live` |
+| evals حية | أسبوعيًا، ومع أي تغيير في النموذج أو البروموت | `npm run eval:live` (بسقف `EVAL_LIVE_MAX_TOTAL_USD`) |
+| الاختبارات على PostgreSQL | مع كل تغيير في طبقة البيانات | `TEST_POSTGRES_URL=postgres://… npm run test:pg` |
+| تحقق التكامل مع n8n | مع كل ترقية لـ n8n أو تغيير في سير العمل | `npm run e2e:n8n` |
+| تنظيف nonces الواردة | يوميًا | `N8nInbound.pruneNonces()` (التشغيل الدوري مخطط ضمن العامل) |
 | مراجعة عينة القرارات (KPIs) | أسبوعيًا | 5% من قرارات كل وكيل |
 | توسيع مجموعة اختبار العقوبات | ربعيًا | أضف أسماء ومتغيرات إلى `compliance.test.ts` |
 | تدوير المفاتيح | حسب سياسة الأمن | `ANTHROPIC_API_KEY` من مدير الأسرار، لا من الملفات |
@@ -301,9 +336,9 @@ npm run ops -- audit task <id>   # كل ما جرى في مهمة
 | البند | الآن | المطلوب |
 |-------|------|---------|
 | هوية الموافق | توقيع Ed25519 لكل قرار موافقة، والمفاتيح يسجلها platform_operator | ربط المفاتيح بـ SSO أو WebAuthn، وتوقيع باقي القرارات البشرية |
-| الأنظمة الخارجية | mocks | connectors حقيقية لـ SAP وGraph والبنك والقوائم، بالواجهات نفسها |
-| قاعدة البيانات | SQLite محلي | PostgreSQL مع نسخ متزامن |
+| الأنظمة الخارجية | n8n حقيقي (مُتحقق منه)، والباقي mocks | connectors حقيقية لـ SAP وGraph والبنك والقوائم، بالواجهات نفسها، أو عبر n8n خلف البوابة |
+| قاعدة البيانات | SQLite أو PostgreSQL (schema لكل مستأجر)، عبر محوّل متزامن | PostgreSQL مُدار مع نسخ متزامن، وواجهة async عند الحاجة القياسية (ADR-013) |
 | audit log | سلسلة hash مع تثبيت HMAC في ملف منفصل | المفتاح في KMS، والملف على WORM، وتصدير الرأس لطرف ثالث |
-| التشغيل | أوامر CLI | خدمة دائمة مع مجدول، وواجهة موافقات، وإشعارات Slack أو Teams |
+| التشغيل | خادم API مع عامل خلفي، ووحدة تحكم ويب، وCLI | نشر بحاويات خلف TLS، وإشعارات Slack أو Teams |
 | المراقبة | `ops metrics` | تصدير إلى Prometheus أو Datadog، وتنبيهات on-call |
 | الإيقاف الطارئ | ملف محلي | علَم مركزي (feature flag) يصل إلى كل النسخ خلال ثوانٍ |

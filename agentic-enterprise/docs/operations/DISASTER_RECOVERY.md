@@ -68,3 +68,27 @@ cp "$AUDIT_ANCHOR_FILE" "backup/anchor-$(date +%F).jsonl"
 | استعادة المهام العالقة بعد انهيار عامل | ✅ آليًا (`hardening.test.ts`) |
 | كشف حذف أو إعادة كتابة بعد الاستعادة | ✅ آليًا (`audit-anchor.test.ts`) |
 | النسخ والاستعادة الكاملة بالإجراء أعلاه | ⬜ يدويًا فقط. الأتمتة مخططة (`IMPLEMENTATION_ROADMAP.md`) |
+
+## ملحق: الخادم متعدد المستأجرين وPostgreSQL (2026-10-15)
+
+ما يجب نسخه معًا، في اللحظة نفسها قدر الإمكان:
+
+| المكوّن | SQLite | PostgreSQL |
+|---------|--------|------------|
+| مستوى التحكم (المستأجرون والرموز وaudit الخاص به) | `DATA_ROOT/control.db` | schema `ae_control` |
+| بيانات كل مستأجر | `DATA_ROOT/tenants/<id>/enterprise.db` | schema `ae_t_<id>` |
+| تثبيت audit (خارج القاعدة عن قصد) | `DATA_ROOT/control-anchor.jsonl`، و`tenants/<id>/audit-anchor.jsonl` | الملفات نفسها على القرص |
+| حالة الأنظمة الوهمية (تطوير فقط) | `tenants/<id>/mock-state.json` | — |
+
+```bash
+# PostgreSQL: نسخة لكل مستأجر، تسمح باستعادة مستأجر واحد دون غيره
+pg_dump "$DATABASE_URL" --schema=ae_t_acme --format=custom --file=acme-$(date +%F).dump
+pg_dump "$DATABASE_URL" --schema=ae_control --format=custom --file=control-$(date +%F).dump
+```
+
+**بعد أي استعادة:**
+1. `npm run ops -- audit verify` لكل مستأجر، أو `GET /readyz`.
+2. **التثبيت أحدث من القاعدة المستعادة** (الحالة الطبيعية بعد الاستعادة): التحقق يُبلغ عن أحداث مثبتة مفقودة. هذا متوقع ويجب توثيقه كحادثة استعادة، لا تجاهله. التثبيت يثبت بالضبط ما فُقد.
+3. **الرموز:** تُستعاد مع مستوى التحكم. ما أُلغي بعد لحظة النسخة يعود صالحًا، **فأعد إلغاءه فورًا** من سجل audit لمستوى التحكم (`token.revoke`).
+
+**لم يُختبر بعد:** تمرين استعادة كامل مؤتمت لمستأجر على PostgreSQL. مخطط ضمن بند النسخ الاحتياطي في الخارطة.
