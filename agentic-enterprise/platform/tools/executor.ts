@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { AgentDefinition, ToolGateway } from "../agent/agent-definition.ts";
+import { permittedByAutonomy, type AgentRegistry } from "../agent/registry.ts";
 import type { ApprovalGate } from "../approval/approval-gate.ts";
 import type { AuditLog } from "../audit/audit-log.ts";
 import { assertAuditIntegrity } from "../audit/integrity.ts";
@@ -36,6 +37,7 @@ export interface ExecutorDeps {
   clock: Clock;
   getTask(id: string): Task;
   getAgent(id: string): AgentDefinition;
+  registry: AgentRegistry;
 }
 
 export class ToolExecutor {
@@ -87,10 +89,21 @@ export class ToolExecutor {
       return { status: "escalated", escalationId: esc.id, reason: "max_attempts_exceeded", note: "Tool call limit reached. Stop and report." };
     }
 
+    // وكيل أوقفه إنسان يتوقف عند استدعاء الأداة التالي، حتى لو كان تشغيله قد بدأ قبل الإيقاف.
+    if (!this.deps.registry.isActive(agent.id)) {
+      log("denied", { code: "AGENT_NOT_ACTIVE", status: this.deps.registry.find(agent.id)?.status ?? "unregistered" });
+      return { status: "denied", code: "AGENT_NOT_ACTIVE", reason: "This agent has been paused or stopped by an operator. Stop now." };
+    }
+
     const tool = this.toolsFor(agent).find((t) => t.name === name);
     if (!tool) {
       log("denied", { code: "TOOL_NOT_ALLOWED" });
       return { status: "denied", code: "TOOL_NOT_ALLOWED", reason: `Tool "${name}" is not available to this agent` };
+    }
+    const autonomy = this.deps.registry.effectiveAutonomy(agent);
+    if (!permittedByAutonomy(autonomy, tool.permission, tool.name)) {
+      log("denied", { code: "AUTONOMY_LIMIT", autonomy, permission: tool.permission });
+      return { status: "denied", code: "AUTONOMY_LIMIT", reason: `Autonomy level ${autonomy} does not permit ${tool.permission} tools. Recommend the action and escalate instead.` };
     }
 
     const parsed = tool.input.strict().safeParse(rawInput);

@@ -70,6 +70,10 @@ export interface AgentDefinition {
   maxToolCalls: number;
   /** مهلة تشغيل واحد بالمللي ثانية. بعدها يُلغى التشغيل وتُرفض استدعاءاته المتأخرة. الافتراضي من AGENT_TIMEOUT_MS. */
   timeoutMs?: number;
+  /** إصدار التعريف (semver). البصمة الكاملة تُحسب في AgentRegistry وتُسجَّل في audit عند أي تغيير. */
+  version?: string;
+  /** أقصى مستوى استقلالية (0 إلى 4). الافتراضي 3: سير عمل بموافقات بشرية. المشغّل يستطيع خفضه وقت التشغيل. */
+  autonomyLevel?: 0 | 1 | 2 | 3 | 4;
   referencePolicy: ReferencePolicy;
   /**
    * حاجز على المخرج النهائي، ويُنفَّذ في Orchestrator قبل قبول المخرج والإحالات.
@@ -86,6 +90,11 @@ export function defineAgent(def: AgentDefinition): AgentDefinition {
     if (names.has(t.name)) throw new Error(`Agent ${def.id}: duplicate tool ${t.name}`);
     names.add(t.name);
   }
+  const level = def.autonomyLevel ?? 3;
+  for (const t of def.tools)
+    if ((t.permission === "approval" && level < 3) || (t.permission === "write" && level < 2))
+      throw new Error(`Agent ${def.id}: tool ${t.name} (${t.permission}) exceeds declared autonomy level ${level}`);
+  if (def.version !== undefined && !/^\d+\.\d+\.\d+$/.test(def.version)) throw new Error(`Agent ${def.id}: version must be semver`);
   for (const g of def.guardrails)
     if (g.appliesTo !== "*")
       for (const t of g.appliesTo) if (!names.has(t)) throw new Error(`Guardrail ${g.id} targets unknown tool ${t}`);

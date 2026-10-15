@@ -55,6 +55,7 @@ async function referencePolicy({ task, tools }: { task: Readonly<Task>; tools: T
 
 export const invoiceProcessorAgent = defineAgent({
   id: "finance.invoice-processor",
+  version: "1.0.0",
   domain: "finance",
   name: "Invoice Processor",
   title: "Accounts Payable Invoice Specialist",

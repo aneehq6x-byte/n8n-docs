@@ -13,6 +13,9 @@
 | outcomeGuard | `Orchestrator.settle` | طفرات المجالات | SI-10 |
 | حد استدعاءات ومهلة تشغيل | `maxToolCalls` و`timeoutMs` | hardening وطفرة | LLM10 |
 | إيقاف طارئ | ملف علَم، وبيئة، وCLI. يُفحص قبل كل أداة وكل مهمة | e2e وطفرة | IR-4 |
+| إيقاف وكيل بعينه (PAUSED) يسري على التشغيل الجاري | `AgentRegistry`، والمنفّذ، و`claim` | `agent-registry.test.ts`، و6 طفرات | IR-4، وAC-3 |
+| مستويات استقلالية 0 إلى 4 مفروضة وقت التشغيل، وخفضها فوري | `permittedByAutonomy` | الاختبار نفسه | LLM06 |
+| بصمة تعريف كل وكيل في audit عند أي تغيير | `definitionFingerprint` | الاختبار نفسه | CM-3 |
 
 ## 2. الموافقة البشرية والهوية
 

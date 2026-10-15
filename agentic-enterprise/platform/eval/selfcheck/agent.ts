@@ -63,6 +63,7 @@ const Output = outcomeSchema(z.object({ invoiceId: z.string(), approvalId: z.str
 
 export const selfcheckAgent = defineAgent({
   id: "platform.selfcheck",
+  version: "1.0.0",
   domain: "platform",
   name: "Selfcheck",
   title: "Platform enforcement self-check agent",

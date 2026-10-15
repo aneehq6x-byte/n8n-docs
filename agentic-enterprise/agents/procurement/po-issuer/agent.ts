@@ -59,6 +59,7 @@ async function referencePolicy({ task, tools }: { task: Readonly<Task>; tools: T
 
 export const poIssuerAgent = defineAgent({
   id: "procurement.po-issuer",
+  version: "1.0.0",
   domain: "procurement",
   name: "PO Issuer",
   title: "Purchase Order Specialist",

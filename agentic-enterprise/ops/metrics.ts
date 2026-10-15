@@ -103,6 +103,10 @@ export function computeMetrics(p: Platform): Metrics {
   if (critical.length) add("critical", "CRITICAL_ESCALATION", `${critical.length} critical escalation(s) open: ${critical.map((e) => e.reason).join(", ")}`, "Owner role must act within 1 hour (runbook §6.1)");
   if (overdue.length) add("warning", "ESCALATION_OVERDUE", `${overdue.length} escalation(s) past SLA`, "Notify role leads; reassign if needed");
   if (oldest !== null && oldest > ALERT_THRESHOLDS.approvalAgeHours) add("warning", "APPROVAL_AGING", `Oldest pending approval is ${oldest.toFixed(1)}h old (expires at 24h)`, "Remind approvers; expired approvals become escalations");
+  const inactive = p.agents.list().filter((a) => a.status !== "ACTIVE" && a.status !== "ARCHIVED");
+  if (inactive.length) add("warning", "AGENT_NOT_ACTIVE", `${inactive.map((a) => `${a.agentId}=${a.status}`).join(", ")}; their tasks wait in the queue`, "Review, then `ops agents activate` (signed) or stop/archive");
+  const restricted = p.agents.list().filter((a) => a.autonomyOverride !== null);
+  if (restricted.length) add("info", "AUTONOMY_RESTRICTED", `${restricted.map((a) => `${a.agentId}≤${a.autonomyOverride}`).join(", ")}`, "Restore with `ops agents autonomy <id> reset` (signed) when the review ends");
   const approvedNotExecuted = approvals.filter((a) => a.status === "approved").length;
   if (approvedNotExecuted && !p.killSwitch.isEngaged()) add("warning", "APPROVED_NOT_EXECUTED", `${approvedNotExecuted} approved action(s) not yet executed`, "Run `ops resume` after verifying the stop cause is resolved");
   for (const [agent, n] of Object.entries(guardrailBlocks))

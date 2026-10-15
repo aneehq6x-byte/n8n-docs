@@ -115,6 +115,19 @@ npm run ops -- audit verify      # يجب أن يظهر: anchoring: file, pendin
 | `compliance_officer` | `u-compliance` | تبرئة أو تأكيد تطابق العقوبات | تطابقات العقوبات |
 | `platform_operator` | `u-ops` | رفع الإيقاف الطارئ | — |
 
+### 3.0 إدارة الوكلاء
+
+```bash
+npm run ops -- agents list                                                       # الحالة والإصدار والاستقلالية والبصمة
+npm run ops -- agents pause finance.payment-scheduler --as u-ciso --note "anomaly"   # فوري، بلا توقيع
+npm run ops -- agents autonomy procurement.po-issuer 1 --as u-cfo --note "recommend-only"   # خفض فوري
+npm run ops -- agents activate finance.payment-scheduler --as u-ops --key <pem> --note "cleared"
+npm run ops -- agents autonomy procurement.po-issuer reset --as u-ops --key <pem> --note "review done"
+```
+
+- **الإيقاف الجراحي أولًا:** عند سلوك مريب من وكيل واحد، أوقفه هو فقط (`pause`) بدل الإيقاف الشامل (§5).
+- مهام الوكيل الموقوف تبقى في الطابور، وتنبيه `AGENT_NOT_ACTIVE` يذكّر بها.
+
 ### 3.1 مفاتيح الموافقين
 
 ```bash
@@ -153,6 +166,8 @@ npm run ops -- audit task <id>   # كل ما جرى في مهمة
 | `AUDIT_TAMPERED` | critical | فشل التحقق من السلسلة أو من التثبيت الخارجي | §6.2 فورًا. المنصة أوقفت نفسها آليًا |
 | `AUDIT_ANCHOR_DISABLED` | warning | لا تثبيت خارجي | §2.4 |
 | `APPROVER_AUTH_TRUSTED` | warning | قرارات موافقة غير موقّعة | `APPROVER_AUTH=signed` و§3.1 |
+| `AGENT_NOT_ACTIVE` | warning | وكيل موقوف أو غير منشور، ومهامه تنتظر | مراجعة، ثم `agents activate` (موقّع) أو إيقاف نهائي |
+| `AUTONOMY_RESTRICTED` | info | وكيل بقيد استقلالية | الرفع بعد انتهاء المراجعة (§3.0) |
 | `KILL_SWITCH_ENGAGED` | critical | الإيقاف مفعّل | تأكد أنه مقصود، ثم §5.3 |
 | `CRITICAL_ESCALATION` | critical | تصعيد critical مفتوح (احتيال أو تلاعب) | الدور المالك خلال ساعة (§6.1) |
 | `ESCALATION_OVERDUE` | warning | تصعيد تجاوز مهلته | إبلاغ قائد الدور، أو إعادة إسناده |

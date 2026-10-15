@@ -28,6 +28,8 @@ const ConfigSchema = z.object({
   AUDIT_ANCHOR_REQUIRED: boolish,
   /** signed: كل قرار موافقة يتطلب توقيع Ed25519 من صاحبه (الافتراضي، وإلزامي في الإنتاج). trusted: للاختبار فقط. */
   APPROVER_AUTH: z.enum(["signed", "trusted"]).default("signed"),
+  /** true: الوكيل الجديد أو الذي تغيّر تعريفه ينتظر نشرًا بشريًا موقّعًا قبل أن يعمل. موصى به في الإنتاج. */
+  AGENT_REQUIRE_DEPLOY: boolish,
 });
 
 export type PlatformConfig = z.infer<typeof ConfigSchema>;

@@ -1,4 +1,5 @@
 import type { AgentDefinition, AgentOutcome } from "../agent/agent-definition.ts";
+import type { AgentRegistry } from "../agent/registry.ts";
 import type { ApprovalGate } from "../approval/approval-gate.ts";
 import type { AuditLog } from "../audit/audit-log.ts";
 import { assertAuditIntegrity } from "../audit/integrity.ts";
@@ -55,6 +56,10 @@ export interface OrchestratorDeps {
   defaultTimeoutMs: number;
   /** توثيق القرارات البشرية غير الموافقة (T17). */
   humanAuth: { mode: "signed" | "trusted"; keys: ApproverKeyRegistry };
+  /** السجل التشغيلي للوكلاء: الحالة والإصدار والاستقلالية. */
+  registry: AgentRegistry;
+  /** true: الوكيل الجديد أو المعدّل ينتظر نشرًا بشريًا قبل التشغيل. */
+  requireDeploy: boolean;
 }
 
 /** التأخير المتصاعد بعد الفشل: 30 ثانية ثم 60 ثم 120، بحد أقصى 15 دقيقة. */
@@ -90,6 +95,7 @@ export class Orchestrator {
       this.routes.set(type, agent.id);
     }
     this.agents.set(agent.id, agent);
+    this.deps.registry.sync(agent, this.deps.requireDeploy);
   }
 
   agent(id: string): AgentDefinition {
@@ -163,7 +169,7 @@ export class Orchestrator {
     for (let i = 0; i < maxTasks; i++) {
       if (this.deps.killSwitch.isEngaged()) break;
       const now = this.deps.clock.now().toISOString();
-      const next = this.list({ status: "queued" }).find((t) => !skipped.has(t.id) && (!t.notBefore || t.notBefore <= now));
+      const next = this.list({ status: "queued" }).find((t) => !skipped.has(t.id) && (!t.notBefore || t.notBefore <= now) && this.deps.registry.isActive(t.assignee));
       if (!next) break;
       const result = await this.run(next.id);
       // لم يتغير شيء: سبقنا عامل آخر إليها. نتخطاها في هذه الدورة.
@@ -182,6 +188,7 @@ export class Orchestrator {
       const task = this.get(taskId);
       const now = this.deps.clock.now();
       if (task.status !== "queued" || (task.notBefore && task.notBefore > now.toISOString())) return null;
+      if (!this.deps.registry.isActive(task.assignee)) return null; // الوكيل موقوف أو غير منشور: تبقى المهمة في الطابور
       return this.transition(task, "running", { attempts: task.attempts + 1 }, { id: newId("lease"), expiresAt: new Date(now.getTime() + leaseMs).toISOString() });
     });
   }

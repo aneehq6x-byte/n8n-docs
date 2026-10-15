@@ -79,6 +79,7 @@ function noteFor(verdict: Assessment["verdict"], primary: Finding | null, ar: bo
 
 export const requisitionIntakeAgent = defineAgent({
   id: "procurement.requisition-intake",
+  version: "1.0.0",
   domain: "procurement",
   name: "Requisition Intake",
   title: "Requisition Intake Specialist",

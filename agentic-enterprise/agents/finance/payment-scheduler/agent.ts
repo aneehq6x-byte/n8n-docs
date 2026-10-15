@@ -58,6 +58,7 @@ async function referencePolicy({ task, tools }: { task: Readonly<Task>; tools: T
 
 export const paymentSchedulerAgent = defineAgent({
   id: "finance.payment-scheduler",
+  version: "1.0.0",
   domain: "finance",
   name: "Payment Scheduler",
   title: "Payments Specialist",

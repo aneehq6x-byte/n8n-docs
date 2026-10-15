@@ -60,6 +60,12 @@ const MUTATIONS = [
   ["T17: resolve escalation authenticated", "platform/orchestrator/orchestrator.ts", 'this.authenticate("task.resolve_escalation/v1", humanId, taskId, { action, note }, proof);', ""],
   ["T17: release authenticated", "platform/orchestrator/orchestrator.ts", 'const fp = this.authenticate("ops.release_stop/v1", humanId, "emergency-stop", { note }, proof);', "const fp = {};"],
   ["T17: sanctions clearance authenticated", "agents/compliance/human-actions.ts", 'if (p.config.APPROVER_AUTH === "signed") {', "if (false) {"],
+  ["registry: paused agent tool calls", "platform/tools/executor.ts", "if (!this.deps.registry.isActive(agent.id)) {", "if (false) {"],
+  ["registry: paused agent claims", "platform/orchestrator/orchestrator.ts", "if (!this.deps.registry.isActive(task.assignee)) return null;", ""],
+  ["registry: autonomy enforcement", "platform/tools/executor.ts", "if (!permittedByAutonomy(autonomy, tool.permission, tool.name)) {", "if (false) {"],
+  ["registry: activation authenticated", "platform/agent/registry.ts", "        this.authenticate(humanId, agentId, { to, note }, proof);", ""],
+  ["registry: autonomy raise authenticated", "platform/agent/registry.ts", "        this.authenticate(humanId, agentId, { autonomy: level, note }, proof);", ""],
+  ["registry: autonomy declared limit", "platform/agent/agent-definition.ts", "if ((t.permission === \"approval\" && level < 3) || (t.permission === \"write\" && level < 2))", "if (false)"],
   // المشتريات
   ["procurement: decision guard", A + "procurement/requisition-intake/guardrails/decision-matches-assessment.ts", "check: (call, ctx) => {", "check: (call, ctx) => { if (1) return allow;"],
   ["procurement: split detection", A + "procurement/shared/assessment.ts", "if (prior.length > 0 && g.totalUsd", "if (false && g.totalUsd"],

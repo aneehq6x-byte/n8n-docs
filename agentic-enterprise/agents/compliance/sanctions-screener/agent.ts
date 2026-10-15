@@ -60,6 +60,7 @@ async function referencePolicy({ task, tools }: { task: Readonly<Task>; tools: T
 
 export const sanctionsScreenerAgent = defineAgent({
   id: "compliance.sanctions-screener",
+  version: "1.0.0",
   domain: "compliance",
   name: "Sanctions Screener",
   title: "Sanctions Screening Analyst",

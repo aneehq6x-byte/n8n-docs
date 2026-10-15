@@ -1,4 +1,5 @@
 import type { AgentDefinition } from "./agent/agent-definition.ts";
+import { AgentRegistry } from "./agent/registry.ts";
 import { ApprovalGate, defaultPolicy } from "./approval/approval-gate.ts";
 import { HmacFileAnchor, NoAnchor, parseAnchorKey, type AuditAnchor } from "./audit/anchor.ts";
 import { AuditLog } from "./audit/audit-log.ts";
@@ -38,6 +39,7 @@ export interface Platform {
   orchestrator: Orchestrator;
   runtime: AgentRuntime;
   keys: ApproverKeyRegistry;
+  agents: AgentRegistry;
   register(...agents: AgentDefinition[]): Platform;
   /** يبني إثبات قرار موقّعًا بمفاتيح التطوير (يتطلب devKeys). */
   signDecision(approvalId: string, humanId: string, decision: "approve" | "reject", comment?: string): DecisionProof;
@@ -97,20 +99,23 @@ export function createPlatform(opts: CreatePlatformOptions = {}): Platform {
       ? new ClaudeAgentRuntime({ model: config.AGENT_MODEL, maxTurns: config.AGENT_MAX_TURNS, maxBudgetUsd: config.AGENT_MAX_BUDGET_USD })
       : new ScriptedRuntime());
 
+  const agentRegistry = new AgentRegistry(db, audit, directory, clock, { mode: config.APPROVER_AUTH, keys });
   let executor: ToolExecutor;
   const orchestrator = new Orchestrator({
     db, audit, gate, escalations, memory, killSwitch, directory, clock, runtime,
-    executor: () => executor, connectors, maxAttempts: 3, defaultTimeoutMs: config.AGENT_TIMEOUT_MS, humanAuth: { mode: config.APPROVER_AUTH, keys },
+    executor: () => executor, connectors, maxAttempts: 3, defaultTimeoutMs: config.AGENT_TIMEOUT_MS, humanAuth: { mode: config.APPROVER_AUTH, keys }, registry: agentRegistry, requireDeploy: config.AGENT_REQUIRE_DEPLOY,
   });
   executor = new ToolExecutor({
     audit, gate, escalations, memory, killSwitch, connectors, clock,
     getTask: (id) => orchestrator.get(id),
     getAgent: (id) => orchestrator.agent(id),
+    registry: agentRegistry,
   });
 
   const platform: Platform = {
     config, db, clock, audit, gate, escalations, notifier, memory, killSwitch, directory, connectors, executor, orchestrator, runtime,
     keys,
+    agents: agentRegistry,
     register(...agents) {
       for (const a of agents) orchestrator.register(a);
       return platform;

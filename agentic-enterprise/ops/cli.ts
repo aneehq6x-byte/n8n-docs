@@ -24,6 +24,10 @@ import { computeMetrics } from "./metrics.ts";
  *   npm run ops -- keys init <humanId> --out <private.pem> --as <operator>    توليد مفتاح موافق وتسجيله
  *   npm run ops -- keys register <humanId> <public.pem> --as <operator>      تسجيل مفتاح عام قائم
  *   npm run ops -- keys list | keys revoke <humanId> --as <human>
+ *   npm run ops -- agents list                                                   الحالة والإصدار والاستقلالية
+ *   npm run ops -- agents pause <agentId> --as <human> --note "…"                إيقاف وكيل واحد فورًا (بلا توقيع)
+ *   npm run ops -- agents activate <agentId> --as <operator> --key <pem> --note "…"
+ *   npm run ops -- agents autonomy <agentId> <0-4|reset> --as <human> [--key <pem>] --note "…"   الخفض بلا توقيع، والرفع بتوقيع
  *   npm run ops -- escalations                              التصعيدات المفتوحة
  *   npm run ops -- resolve <taskId> --as <human> --action requeue|complete|reject|cancel --note "…"
  *   npm run ops -- clear-match <screeningId> --as <human> --status false_positive|confirmed_match --note "…"
@@ -174,6 +178,30 @@ async function main(): Promise<void> {
         } else if (sub === "revoke" && humanId) {
           console.log(`Revoked ${p.keys.revoke(humanId, requireHuman(p))} key(s) for ${humanId}`);
         } else throw new Error("usage: keys list | keys init <humanId> --out <file> --as <operator> | keys register <humanId> <public.pem> --as <operator> | keys revoke <humanId> --as <human>");
+        break;
+      }
+      case "agents": {
+        const [sub, agentId, level] = args;
+        if (sub === "list") {
+          table(p.agents.list().map((a) => {
+            const def = p.orchestrator.listAgents().find((d) => d.id === a.agentId);
+            return { agent: a.agentId, version: a.version, status: a.status, autonomy: def ? p.agents.effectiveAutonomy(def) : "-", hash: a.definitionHash.slice(0, 12), updatedBy: a.updatedBy, note: a.note.slice(0, 40) };
+          }));
+        } else if (sub === "pause" && agentId) {
+          console.log(p.agents.setStatus(agentId, "PAUSED", requireHuman(p), values.note));
+        } else if ((sub === "activate" || sub === "deploy") && agentId) {
+          const who = requireHuman(p);
+          const to = sub === "deploy" ? "DEPLOYED" : "ACTIVE";
+          console.log(p.agents.setStatus(agentId, to, who, values.note, signIfRequired(p, who, "agent.activate/v1", agentId, { to, note: values.note })));
+        } else if (sub === "autonomy" && agentId && level !== undefined) {
+          const who = requireHuman(p);
+          const lvl = level === "reset" ? null : (Number(level) as 0 | 1 | 2 | 3 | 4);
+          if (lvl !== null && ![0, 1, 2, 3, 4].includes(lvl)) throw new Error("autonomy level must be 0-4 or reset");
+          const current = p.agents.find(agentId)?.autonomyOverride ?? null;
+          const lowering = lvl !== null && (current === null || lvl < current);
+          const proof = lowering ? undefined : signIfRequired(p, who, "agent.activate/v1", agentId, { autonomy: lvl, note: values.note });
+          console.log(p.agents.setAutonomy(agentId, lvl, who, values.note, proof));
+        } else throw new Error("usage: agents list | agents pause <id> --note | agents activate|deploy <id> --key --note | agents autonomy <id> <0-4|reset> --note");
         break;
       }
       case "escalations":
