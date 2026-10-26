@@ -89,7 +89,7 @@ async def test_plan_price_update_is_audited(client):
     h = {"X-API-Key": "adm-key-0001"}
     r = await client.patch("/admin/plans/monthly", json={"price_stars": 999}, headers=h)
     assert r.json()["stars"] == 999
-    log = (await client.get("/admin/audit", headers=h)).json()
+    log = (await client.get("/admin/audit", headers=h)).json()["items"]
     assert log[0]["action"] == "plan.updated" and log[0]["actor"].startswith("admin:admin:")
     assert (await client.patch("/admin/plans/monthly", json={"price_stars": 0},
                                headers=h)).status_code == 422
