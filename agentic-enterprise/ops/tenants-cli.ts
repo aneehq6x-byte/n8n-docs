@@ -8,7 +8,7 @@ import { API_SCOPES, ControlPlane, deriveTenantKey, type ApiScope } from "../pla
  *   npm run ops -- tenants create <id> --name "…" --as <operator> [--n8n-secret-env ACME_N8N_INBOUND_SECRET]
  *   npm run ops -- tenants list
  *   npm run ops -- tenants suspend|activate <id> --as <operator> --note "…"
- *   npm run ops -- tokens issue <tenantId> --scopes tasks:write,tasks:read --originator u-requester --label "…" --as <operator>
+ *   npm run ops -- tokens issue <tenantId> --scopes tasks:write,tasks:read --originator u-requester --label "…" --as <operator> [--ttl-days 90]
  *   npm run ops -- tokens list [tenantId]
  *   npm run ops -- tokens revoke <tokenId> --as <operator> --note "…"
  */
@@ -36,8 +36,9 @@ export function runControlCommand(cmd: string, args: string[], v: Record<string,
       if (sub === "issue") {
         const scopes = String(v.scopes ?? "").split(",").filter(Boolean) as ApiScope[];
         for (const s of scopes) if (!(API_SCOPES as readonly string[]).includes(s)) throw new Error(`Unknown scope ${s}. Valid: ${API_SCOPES.join(", ")}`);
-        const { token, tokenId } = cp.issueToken(String(id), { scopes, originator: String(v.originator ?? ""), label: String(v.label ?? "") }, as());
-        console.log(`Token ${tokenId} issued. Store it in your secret manager now; it is not shown again:\n${token}`);
+        const ttlDays = typeof v["ttl-days"] === "string" ? Number(v["ttl-days"]) : undefined;
+        const { token, tokenId, expiresAt } = cp.issueToken(String(id), { scopes, originator: String(v.originator ?? ""), label: String(v.label ?? ""), ...(ttlDays ? { ttlDays } : {}) }, as());
+        console.log(`Token ${tokenId} issued, expires ${expiresAt}. Store it in your secret manager now; it is not shown again:\n${token}`);
       } else if (sub === "list") console.table(cp.listTokens(id));
       else if (sub === "revoke") {
         cp.revokeToken(String(id), as(), String(v.note ?? ""));

@@ -85,6 +85,11 @@ const MUTATIONS = [
   ["api: body size limit", "server/api.ts", "if (size > maxBody) throw", "if (false) throw"],
   ["api: rate limit", "server/api.ts", "if (!allow(p.tokenId)) throw", "if (false) throw"],
   ["api: tenant id validated", "platform/tenancy/control-plane.ts", 'return join(this.dataRoot, "tenants", TenantIdSchema.parse(tenantId));', 'return join(this.dataRoot, "tenants", tenantId);'],
+  ["api: token expiry", "platform/tenancy/control-plane.ts", "if (!r.expires_at || String(r.expires_at) <= this.clock.now().toISOString()) return null;", ""],
+  ["delegation: depth limit", "platform/orchestrator/orchestrator.ts", "const reason = depth + 1 > maxDepth ?", "const reason = false ?"],
+  ["delegation: loop detection", "platform/orchestrator/orchestrator.ts", ": repeats >= MAX_SAME_HANDOFF_IN_CHAIN ?", ": false ?"],
+  ["budget: claim blocked when exhausted", "platform/orchestrator/orchestrator.ts", "      if (this.budgetRemaining(task.assignee) <= 0) {", "      if (false) {"],
+  ["budget: remaining passed to runtime", "platform/orchestrator/orchestrator.ts", "maxBudgetUsd: this.budgetRemaining(agent.id) }", "maxBudgetUsd: undefined }"],
   // المشتريات
   ["procurement: decision guard", A + "procurement/requisition-intake/guardrails/decision-matches-assessment.ts", "check: (call, ctx) => {", "check: (call, ctx) => { if (1) return allow;"],
   ["procurement: split detection", A + "procurement/shared/assessment.ts", "if (prior.length > 0 && g.totalUsd", "if (false && g.totalUsd"],

@@ -14,6 +14,8 @@ export interface RunRequest {
   toolList: AgentDefinition["tools"];
   /** يُطلق عند انتهاء المهلة. المنفّذ الحي يمرره إلى Agent SDK لإلغاء الطلب فعليًا. */
   signal?: AbortSignal;
+  /** ما تبقى من ميزانية الوكيل اليومية. المنفّذ الحي يأخذ الأدنى بينه وبين سقف التشغيل الواحد. */
+  maxBudgetUsd?: number;
 }
 
 export interface RunResult {

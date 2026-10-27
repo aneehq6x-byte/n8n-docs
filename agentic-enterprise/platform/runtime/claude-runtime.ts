@@ -65,7 +65,7 @@ export class ClaudeAgentRuntime implements AgentRuntime {
         settingSources: [],
         persistSession: false,
         maxTurns: this.opts.maxTurns,
-        maxBudgetUsd: this.opts.maxBudgetUsd,
+        maxBudgetUsd: Math.min(this.opts.maxBudgetUsd, req.maxBudgetUsd ?? Infinity),
         outputFormat: { type: "json_schema", schema: z.toJSONSchema(req.agent.outputSchema, { io: "input" }) as Record<string, unknown> },
       },
     })) {

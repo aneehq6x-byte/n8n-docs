@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import type { AuditAnchor } from "../audit/anchor.ts";
 import { AuditLog } from "../audit/audit-log.ts";
-import { openDatabase, parseJson, transaction, type Database } from "../core/db.ts";
+import { ensureColumns, openDatabase, parseJson, transaction, type Database } from "../core/db.ts";
 import { PlatformError } from "../core/errors.ts";
 import { newId, type Clock } from "../core/util.ts";
 
@@ -73,6 +73,7 @@ export class ControlPlane {
         created_by TEXT NOT NULL, created_at TEXT NOT NULL, revoked_at TEXT, last_used_at TEXT
       );
     `);
+    ensureColumns(this.db, "api_tokens", { expires_at: "TEXT" });
   }
 
   /** اسم الـ schema للمستأجر في PostgreSQL. */
@@ -117,7 +118,13 @@ export class ControlPlane {
   }
 
   /** يعيد الرمز الخام مرة واحدة فقط. */
-  issueToken(tenantId: string, opts: { scopes: ApiScope[]; originator: string; label: string }, actor: string): { token: string; tokenId: string } {
+  /** صلاحية الرمز الافتراضية بالأيام. الرمز بلا انتهاء غير مسموح؛ التدوير الدوري إلزامي. */
+  static readonly DEFAULT_TOKEN_TTL_DAYS = 90;
+  static readonly MAX_TOKEN_TTL_DAYS = 365;
+
+  issueToken(tenantId: string, opts: { scopes: ApiScope[]; originator: string; label: string; ttlDays?: number }, actor: string): { token: string; tokenId: string; expiresAt: string } {
+    const ttlDays = z.number().positive().max(ControlPlane.MAX_TOKEN_TTL_DAYS).parse(opts.ttlDays ?? ControlPlane.DEFAULT_TOKEN_TTL_DAYS);
+    const expiresAt = new Date(this.clock.now().getTime() + ttlDays * 86_400_000).toISOString();
     const scopes = z.array(z.enum(API_SCOPES)).min(1).parse(opts.scopes);
     return transaction(this.db, () => {
       const t = this.getTenant(tenantId);
@@ -125,10 +132,10 @@ export class ControlPlane {
       const tokenId = newId("tok").replace(/[^a-z0-9]/gi, "").toLowerCase().slice(0, 32);
       const token = `aet_${tokenId}_${randomBytes(32).toString("base64url")}`;
       this.db
-        .prepare("INSERT INTO api_tokens (id, tenant_id, token_hash, scopes, originator, label, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-        .run(tokenId, tenantId, hashToken(token), JSON.stringify(scopes), opts.originator, opts.label.slice(0, 100), actor, this.clock.now().toISOString());
-      this.audit.append({ actor: { type: "human", id: actor }, action: "token.issue", target: tokenId, outcome: "success", data: { tenantId, scopes, originator: opts.originator, label: opts.label } });
-      return { token, tokenId };
+        .prepare("INSERT INTO api_tokens (id, tenant_id, token_hash, scopes, originator, label, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .run(tokenId, tenantId, hashToken(token), JSON.stringify(scopes), opts.originator, opts.label.slice(0, 100), actor, this.clock.now().toISOString(), expiresAt);
+      this.audit.append({ actor: { type: "human", id: actor }, action: "token.issue", target: tokenId, outcome: "success", data: { tenantId, scopes, originator: opts.originator, label: opts.label, expiresAt } });
+      return { token, tokenId, expiresAt };
     });
   }
 
@@ -140,11 +147,11 @@ export class ControlPlane {
     });
   }
 
-  listTokens(tenantId?: string): Array<Omit<ApiPrincipal, "scopes"> & { scopes: string[]; revokedAt: string | null; lastUsedAt: string | null }> {
+  listTokens(tenantId?: string): Array<Omit<ApiPrincipal, "scopes"> & { scopes: string[]; revokedAt: string | null; lastUsedAt: string | null; expiresAt: string | null }> {
     const rows = this.db.prepare(`SELECT * FROM api_tokens ${tenantId ? "WHERE tenant_id = ?" : ""} ORDER BY created_at`).all(...(tenantId ? [tenantId] : [])) as Array<Record<string, unknown>>;
     return rows.map((r) => ({
       tokenId: String(r.id), tenantId: String(r.tenant_id), scopes: parseJson(r.scopes) as string[], originator: String(r.originator), label: String(r.label),
-      revokedAt: (r.revoked_at as string | null) ?? null, lastUsedAt: (r.last_used_at as string | null) ?? null,
+      revokedAt: (r.revoked_at as string | null) ?? null, lastUsedAt: (r.last_used_at as string | null) ?? null, expiresAt: (r.expires_at as string | null) ?? null,
     }));
   }
 
@@ -155,6 +162,8 @@ export class ControlPlane {
     if (!m) return null;
     const r = this.db.prepare("SELECT * FROM api_tokens WHERE id = ?").get(m[1]!) as Record<string, unknown> | undefined;
     if (!r || r.revoked_at) return null;
+    // الرموز القديمة (قبل إضافة الانتهاء) بلا expires_at تُرفض: لا رمز أبدي.
+    if (!r.expires_at || String(r.expires_at) <= this.clock.now().toISOString()) return null;
     const a = Buffer.from(String(r.token_hash), "hex");
     const b = Buffer.from(hashToken(token), "hex");
     if (a.length !== b.length || !timingSafeEqual(a, b)) return null;

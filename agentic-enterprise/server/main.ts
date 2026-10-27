@@ -32,6 +32,7 @@ const tenants = new TenantPlatforms(control, { ...(master ? { anchorMasterKey: m
 const server = createApi({ control, tenants, log });
 
 let stopping = false;
+let lastPrune = 0;
 let working = false;
 async function workOnce(): Promise<void> {
   if (working || stopping) return;
@@ -40,6 +41,7 @@ async function workOnce(): Promise<void> {
     for (const t of control.listTenants().filter((x) => x.status === "active")) {
       try {
         const p = tenants.get(t.id);
+        if (Date.now() - lastPrune > 10 * 60_000) p.inbound?.pruneNonces();
         const done = await p.orchestrator.drain(25);
         if (done.length) {
           tenants.persist(t.id);
@@ -50,6 +52,7 @@ async function workOnce(): Promise<void> {
       }
     }
   } finally {
+    if (Date.now() - lastPrune > 10 * 60_000) lastPrune = Date.now();
     working = false;
   }
 }

@@ -113,7 +113,7 @@ export function createPlatform(opts: CreatePlatformOptions = {}): Platform {
   let executor: ToolExecutor;
   const orchestrator = new Orchestrator({
     db, audit, gate, escalations, memory, killSwitch, directory, clock, runtime,
-    executor: () => executor, connectors, maxAttempts: 3, defaultTimeoutMs: config.AGENT_TIMEOUT_MS, humanAuth: { mode: config.APPROVER_AUTH, keys }, registry: agentRegistry, requireDeploy: config.AGENT_REQUIRE_DEPLOY,
+    executor: () => executor, connectors, maxAttempts: 3, defaultTimeoutMs: config.AGENT_TIMEOUT_MS, humanAuth: { mode: config.APPROVER_AUTH, keys }, registry: agentRegistry, requireDeploy: config.AGENT_REQUIRE_DEPLOY, maxHandoffDepth: config.AGENT_MAX_HANDOFF_DEPTH, dailyBudgetUsd: config.AGENT_DAILY_BUDGET_USD,
   });
   executor = new ToolExecutor({
     audit, gate, escalations, memory, killSwitch, connectors, clock,

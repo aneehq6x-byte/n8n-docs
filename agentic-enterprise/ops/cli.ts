@@ -2,6 +2,8 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, wri
 import { dirname } from "node:path";
 import { parseArgs } from "node:util";
 import { ALL_AGENTS } from "../agents/index.ts";
+import { parseAnchorKey } from "../platform/audit/anchor.ts";
+import { backupUnits, dataRootUnits, keyForUnit, verifyBackup } from "./backup.ts";
 import { runControlCommand } from "./tenants-cli.ts";
 import { resolvePotentialMatch } from "../agents/compliance/human-actions.ts";
 import { loadConfig } from "../platform/config.ts";
@@ -36,6 +38,8 @@ import { computeMetrics } from "./metrics.ts";
  *   npm run ops -- release --as <operator> --key <pem> --note "…"   رفع الإيقاف (لا يستأنف التنفيذ تلقائيًا)
  *   npm run ops -- resume --as <operator> --key <pem>                تنفيذ الموافقات المعلّقة بعد رفع الإيقاف
  *   npm run ops -- audit verify | audit tail [n] | audit task <taskId>
+ *   npm run ops -- backup --out <dir> [--data-root <DATA_ROOT>]     نسخة متسقة مع تثبيت مقصوص وmanifest
+ *   npm run ops -- backup verify <dir> [--data-root .]               تحقق من النسخة (hashes وسلسلة audit)
  *   npm run ops -- reset-demo --confirm                     حذف البيانات المحلية (بيئة التطوير فقط)
  *
  * الهوية: قرارات الموافقة موقّعة بمفتاح الموافق الخاص (APPROVER_AUTH=signed، الافتراضي)، فـ --as وحده لا يكفي.
@@ -75,6 +79,8 @@ const { positionals, values } = parseArgs({
     originator: { type: "string" },
     label: { type: "string" },
     "n8n-secret-env": { type: "string" },
+    "ttl-days": { type: "string" },
+    "data-root": { type: "string" },
   },
 });
 const [cmd, ...args] = positionals;
@@ -100,6 +106,26 @@ function table(rows: Array<Record<string, unknown>>): void {
 
 async function main(): Promise<void> {
   if (cmd === "tenants" || cmd === "tokens") return runControlCommand(cmd, args, values);
+  if (cmd === "backup") {
+    const master = config.AUDIT_ANCHOR_KEY ? parseAnchorKey(config.AUDIT_ANCHOR_KEY) : undefined;
+    const server = values["data-root"];
+    if (args[0] === "verify") {
+      const dir = args[1];
+      if (!dir) throw new Error("backup verify <dir>");
+      const checks = verifyBackup(dir, keyForUnit(master, values["data-root"] ? undefined : master));
+      for (const c of checks) console.log(`${c.ok ? "OK  " : "FAIL"}  ${c.name.padEnd(24)} ${c.audit ? `${c.audit.entries} entries, anchoring ${c.audit.anchoring}` : ""} ${c.problems.join("; ")}`);
+      if (checks.some((c) => !c.ok)) process.exitCode = 1;
+      return;
+    }
+    if (!values.out) throw new Error("backup --out <dir> [--data-root <DATA_ROOT>]");
+    const units = server
+      ? dataRootUnits(server, master)
+      : [{ name: "enterprise", db: config.DATABASE_PATH, anchor: config.AUDIT_ANCHOR_FILE, ...(master ? { anchorKey: master } : {}) }];
+    const m = await backupUnits(units, values.out);
+    for (const u of m.units) console.log(`backed up ${u.name.padEnd(24)} seq ${u.lastSeq}, ${u.entries} audit entries${u.anchor ? ", anchor trimmed to snapshot" : ""}`);
+    console.log(`Manifest: ${values.out}/manifest.json. Verify with: npm run ops -- backup verify ${values.out}${server ? " --data-root ." : ""}`);
+    return;
+  }
   if (cmd === "reset-demo") {
     if (!values.confirm) throw new Error("reset-demo deletes local data; pass --confirm");
     for (const f of [config.DATABASE_PATH, `${config.DATABASE_PATH}-wal`, `${config.DATABASE_PATH}-shm`, STATE_FILE]) if (existsSync(f)) rmSync(f);

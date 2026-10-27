@@ -53,6 +53,8 @@ npm run check                 # يجب أن ينجح قبل أي تشغيل: typ
 | `N8N_BASE_URL` / `N8N_OUTBOUND_SECRET` / `N8N_WORKFLOWS_FILE` | (فارغ) | عنوان n8n، وسر التوقيع الصادر، وكتالوج سير العمل المسموح |
 | `LOG_LEVEL` | `info` | سجلات JSON إلى stdout |
 | `EVAL_LIVE_MAX_TOTAL_USD` | `5` | سقف التكلفة الإجمالي لتشغيل `eval:live` |
+| `AGENT_DAILY_BUDGET_USD` | `50` | سقف تكلفة كل وكيل خلال 24 ساعة متحركة. عند بلوغه تنتظر مهامه، ويطلق تنبيه `BUDGET_EXHAUSTED`. التعريف يستطيع تحديد `dailyBudgetUsd` خاص |
+| `AGENT_MAX_HANDOFF_DEPTH` | `6` | أقصى عمق لسلسلة الإحالات. التجاوز، أو تكرار الإحالة نفسها مرتين في السلسلة، يُرفض ويُصعَّد (`delegation_limit`) |
 
 ---
 
@@ -199,6 +201,8 @@ npm run ops -- audit task <id>   # كل ما جرى في مهمة
 | `AUDIT_ANCHOR_DISABLED` | warning | لا تثبيت خارجي | §2.4 |
 | `APPROVER_AUTH_TRUSTED` | warning | قرارات موافقة غير موقّعة | `APPROVER_AUTH=signed` و§3.1 |
 | `AGENT_NOT_ACTIVE` | warning | وكيل موقوف أو غير منشور، ومهامه تنتظر | مراجعة، ثم `agents activate` (موقّع) أو إيقاف نهائي |
+| `BUDGET_EXHAUSTED` | critical | وكيل بلغ سقف تكلفته اليومي، ومهامه تنتظر | ابحث عن حلقة أو حجم غير معتاد، ثم ارفع السقف عن قصد أو انتظر النافذة |
+| `BUDGET_NEAR` | warning | وكيل تجاوز 80% من سقفه | تحقق من الحجم |
 | `AUTONOMY_RESTRICTED` | info | وكيل بقيد استقلالية | الرفع بعد انتهاء المراجعة (§3.0) |
 | `KILL_SWITCH_ENGAGED` | critical | الإيقاف مفعّل | تأكد أنه مقصود، ثم §5.3 |
 | `CRITICAL_ESCALATION` | critical | تصعيد critical مفتوح (احتيال أو تلاعب) | الدور المالك خلال ساعة (§6.1) |
@@ -318,7 +322,8 @@ npm run ops -- audit task <id>   # كل ما جرى في مهمة
 |--------|---------|-------------------|
 | تحويل الموافقات المنتهية إلى تصعيدات | كل دقيقة | ضمن `ops run` |
 | التحقق من audit | يوميًا، وقبل أي رفع إيقاف | `ops audit verify` |
-| نسخ احتياطي | يوميًا | القاعدة وملف التثبيت معًا. الإجراء في [`DISASTER_RECOVERY.md`](DISASTER_RECOVERY.md) |
+| نسخ احتياطي | يوميًا | `npm run ops -- backup --out <dir>` (أو `--data-root` للخادم)، ثم `npm run ops -- backup verify <dir>`. التفاصيل في [`DISASTER_RECOVERY.md`](DISASTER_RECOVERY.md) |
+| تدوير رموز API | قبل انتهائها (90 يومًا افتراضيًا) | `ops tokens issue … --ttl-days N`، ثم `ops tokens revoke` للقديم |
 | اختبار الطفرات | مع كل تغيير في الحواجز أو التقييمات | `npm run mutation`، والمطلوب 0 missed |
 | evals حية | أسبوعيًا، ومع أي تغيير في النموذج أو البروموت | `npm run eval:live` (بسقف `EVAL_LIVE_MAX_TOTAL_USD`) |
 | الاختبارات على PostgreSQL | مع كل تغيير في طبقة البيانات | `TEST_POSTGRES_URL=postgres://… npm run test:pg` |

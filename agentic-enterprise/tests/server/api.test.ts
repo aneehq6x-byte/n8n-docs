@@ -85,6 +85,19 @@ describe("HTTP API: authentication, scopes and tenant isolation", () => {
     expect(() => s.control.tenantDir("../etc")).toThrow();
   });
 
+  it("tokens expire: default 90 days, capped at 365, and an expired token is rejected", async () => {
+    const s = await start();
+    s.control.createTenant("acme", "Acme", "u-ops");
+    const short = s.control.issueToken("acme", { scopes: ["tasks:read"], originator: "u-requester", label: "short", ttlDays: 1 }, "u-ops");
+    const dflt = s.control.issueToken("acme", { scopes: ["tasks:read"], originator: "u-requester", label: "default" }, "u-ops");
+    expect(new Date(dflt.expiresAt).getTime() - s.clock.now().getTime()).toBe(90 * 86_400_000);
+    expect(() => s.control.issueToken("acme", { scopes: ["tasks:read"], originator: "u-requester", label: "forever", ttlDays: 10_000 }, "u-ops")).toThrow();
+    expect((await s.call("GET", "/v1/tasks", short.token)).status).toBe(200);
+    s.clock.advanceHours(25);
+    expect((await s.call("GET", "/v1/tasks", short.token)).status).toBe(401);
+    expect((await s.call("GET", "/v1/tasks", dflt.token)).status).toBe(200);
+  });
+
   it("suspending a tenant cuts off its tokens immediately", async () => {
     const s = await start();
     s.control.createTenant("acme", "Acme", "u-ops");

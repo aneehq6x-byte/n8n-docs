@@ -25,6 +25,10 @@ const ConfigSchema = z.object({
   AGENT_MAX_TURNS: z.coerce.number().int().positive().default(20),
   AGENT_MAX_BUDGET_USD: z.coerce.number().positive().default(2),
   AGENT_TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
+  /** أقصى عمق لسلسلة الإحالات بين الوكلاء. */
+  /** سقف التكلفة التراكمية لكل وكيل خلال 24 ساعة متحركة (دولار). */
+  AGENT_DAILY_BUDGET_USD: z.coerce.number().positive().default(50),
+  AGENT_MAX_HANDOFF_DEPTH: z.coerce.number().int().min(1).max(50).default(6),
   /** مفتاح HMAC لتثبيت audit خارج القاعدة (32 بايت على الأقل، hex أو base64). يأتي من مدير الأسرار. */
   AUDIT_ANCHOR_KEY: z.string().optional(),
   AUDIT_ANCHOR_FILE: z.string().default("./data/audit-anchor.jsonl"),

@@ -28,6 +28,7 @@ export const ESCALATION_REASONS = [
   "sanctions_potential_match",
   "agent_requested",
   "runtime_error",
+  "delegation_limit",
 ] as const;
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
 

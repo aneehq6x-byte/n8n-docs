@@ -60,7 +60,14 @@ export interface OrchestratorDeps {
   registry: AgentRegistry;
   /** true: الوكيل الجديد أو المعدّل ينتظر نشرًا بشريًا قبل التشغيل. */
   requireDeploy: boolean;
+  /** أقصى عمق لسلسلة الإحالات (الجذر = 0). الافتراضي 6. */
+  maxHandoffDepth?: number;
+  /** سقف التكلفة التراكمية لكل وكيل خلال 24 ساعة متحركة (دولار). يتجاوزه تعريف الوكيل إن حدد dailyBudgetUsd. */
+  dailyBudgetUsd?: number;
 }
+
+/** عدد مرات ظهور (نوع المهمة، hash المدخلات) نفسه بين الأسلاف قبل اعتبار السلسلة حلقة. يسمح بالاستئناف المشروع مرة واحدة. */
+export const MAX_SAME_HANDOFF_IN_CHAIN = 2;
 
 /** التأخير المتصاعد بعد الفشل: 30 ثانية ثم 60 ثم 120، بحد أقصى 15 دقيقة. */
 export function backoffMs(attempts: number): number {
@@ -169,7 +176,9 @@ export class Orchestrator {
     for (let i = 0; i < maxTasks; i++) {
       if (this.deps.killSwitch.isEngaged()) break;
       const now = this.deps.clock.now().toISOString();
-      const next = this.list({ status: "queued" }).find((t) => !skipped.has(t.id) && (!t.notBefore || t.notBefore <= now) && this.deps.registry.isActive(t.assignee));
+      const next = this.list({ status: "queued" }).find(
+        (t) => !skipped.has(t.id) && (!t.notBefore || t.notBefore <= now) && this.deps.registry.isActive(t.assignee) && this.budgetRemaining(t.assignee) > 0,
+      );
       if (!next) break;
       const result = await this.run(next.id);
       // لم يتغير شيء: سبقنا عامل آخر إليها. نتخطاها في هذه الدورة.
@@ -189,8 +198,43 @@ export class Orchestrator {
       const now = this.deps.clock.now();
       if (task.status !== "queued" || (task.notBefore && task.notBefore > now.toISOString())) return null;
       if (!this.deps.registry.isActive(task.assignee)) return null; // الوكيل موقوف أو غير منشور: تبقى المهمة في الطابور
+      if (this.budgetRemaining(task.assignee) <= 0) {
+        this.noteBudgetExhausted(task.assignee);
+        return null; // الميزانية اليومية استُنفدت: تبقى المهمة في الطابور حتى تنفتح النافذة أو يرفع إنسان السقف
+      }
       return this.transition(task, "running", { attempts: task.attempts + 1 }, { id: newId("lease"), expiresAt: new Date(now.getTime() + leaseMs).toISOString() });
     });
+  }
+
+  /** الوكلاء المسجلون (للقراءة). */
+  registeredAgents(): AgentDefinition[] {
+    return [...this.agents.values()];
+  }
+
+  /** السقف الفعلي للوكيل خلال 24 ساعة (Infinity إن لم يُحدد سقف). */
+  dailyBudget(agentId: string): number {
+    const a = this.agents.get(agentId);
+    return a?.dailyBudgetUsd ?? this.deps.dailyBudgetUsd ?? Infinity;
+  }
+
+  /** ما أنفقه الوكيل في آخر 24 ساعة، من أحداث agent.usage في audit (المصدر الموثوق للتكلفة). */
+  spentLast24h(agentId: string): number {
+    const since = new Date(this.deps.clock.now().getTime() - 24 * 3_600_000).toISOString();
+    const rows = this.deps.db.prepare("SELECT data FROM audit_log WHERE action = 'agent.usage' AND actor_id = ? AND ts >= ?").all(agentId, since);
+    return rows.reduce((n, r) => n + Number(parseJson<{ costUsd?: number }>(r.data).costUsd ?? 0), 0);
+  }
+
+  budgetRemaining(agentId: string): number {
+    const cap = this.dailyBudget(agentId);
+    return cap === Infinity ? Infinity : cap - this.spentLast24h(agentId);
+  }
+
+  /** يسجل حدث استنفاد الميزانية مرة واحدة لكل نافذة 24 ساعة، لا عند كل محاولة مطالبة. */
+  private noteBudgetExhausted(agentId: string): void {
+    const since = new Date(this.deps.clock.now().getTime() - 24 * 3_600_000).toISOString();
+    const already = this.deps.db.prepare("SELECT 1 FROM audit_log WHERE action = 'agent.budget_exhausted' AND target = ? AND ts >= ? LIMIT 1").get(agentId, since);
+    if (!already)
+      this.deps.audit.append({ actor: { type: "system", id: "orchestrator" }, action: "agent.budget_exhausted", target: agentId, outcome: "denied", data: { capUsd: this.dailyBudget(agentId), spentUsd: this.spentLast24h(agentId) } });
   }
 
   /**
@@ -227,7 +271,7 @@ export class Orchestrator {
     let outcome: AgentOutcome;
     try {
       const result = await Promise.race([
-        this.deps.runtime.run({ agent, task, tools: executor.gatewayFor(agent, taskId, leaseId), toolList: executor.toolsFor(agent), signal: abort.signal }),
+        this.deps.runtime.run({ agent, task, tools: executor.gatewayFor(agent, taskId, leaseId), toolList: executor.toolsFor(agent), signal: abort.signal, maxBudgetUsd: this.budgetRemaining(agent.id) }),
         new Promise<never>((_, reject) => {
           timer = setTimeout(() => (abort.abort(), reject(new Error(`Agent run exceeded timeout of ${timeoutMs} ms`))), timeoutMs);
         }),
@@ -397,8 +441,24 @@ export class Orchestrator {
   }
 
   private allowHandoff(task: Task, agent: AgentDefinition, h: Handoff): boolean {
-    if (agent.canHandoffTo.includes(h.taskType) && this.routes.has(h.taskType)) return true;
-    this.deps.audit.append({ actor: { type: "agent", id: agent.id }, action: "task.handoff", taskId: task.id, outcome: "denied", data: { taskType: h.taskType, reason: "not in canHandoffTo" } });
+    if (!(agent.canHandoffTo.includes(h.taskType) && this.routes.has(h.taskType))) {
+      this.deps.audit.append({ actor: { type: "agent", id: agent.id }, action: "task.handoff", taskId: task.id, outcome: "denied", data: { taskType: h.taskType, reason: "not in canHandoffTo" } });
+      return false;
+    }
+    // حد عمق التفويض وكشف الحلقات: سلسلة إحالات بلا نهاية تستهلك التكلفة وتخفي المسؤولية.
+    const maxDepth = this.deps.maxHandoffDepth ?? 6;
+    const key = `${h.taskType}:${hashObject(h.input)}`;
+    let depth = 0;
+    let repeats = 0;
+    for (let t: Task | null = task; t; t = t.parentId ? this.get(t.parentId) : null) {
+      if (`${t.type}:${hashObject(t.input)}` === key) repeats++;
+      if (t.parentId) depth++;
+      if (depth > maxDepth + 1) break;
+    }
+    const reason = depth + 1 > maxDepth ? `delegation depth ${depth + 1} exceeds ${maxDepth}` : repeats >= MAX_SAME_HANDOFF_IN_CHAIN ? `handoff loop: ${h.taskType} with the same input already appears ${repeats} times in this chain` : null;
+    if (!reason) return true;
+    this.deps.audit.append({ actor: { type: "agent", id: agent.id }, action: "task.handoff", taskId: task.id, outcome: "denied", data: { taskType: h.taskType, reason } });
+    this.deps.escalations.raise({ taskId: task.id, raisedBy: "orchestrator", reason: "delegation_limit", severity: "medium", toRole: agent.defaultEscalationRole, summary: `Handoff to ${h.taskType} refused: ${reason}` });
     return false;
   }
 

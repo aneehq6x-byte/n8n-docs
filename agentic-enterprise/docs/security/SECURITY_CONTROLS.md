@@ -67,13 +67,16 @@
 | وحدة التحكم: textContent فقط، وCSP، وتوقيع داخل المتصفح | `server/console.ts` | `e2e:console` |
 | PostgreSQL: محفزات تمنع UPDATE وDELETE وTRUNCATE على audit، وكاتب واحد لكل مستأجر | `platform/core/postgres.ts`، و`audit-log.ts` | `test:pg` (112 اختبارًا و34 eval) |
 
+| حد عمق التفويض (6 افتراضيًا) وكشف حلقات الإحالة، مع تصعيد | `Orchestrator.allowHandoff` | `delegation.test.ts`، وطفرتان |
+| ميزانية تكلفة تراكمية لكل وكيل خلال 24 ساعة، تُفرض عند المطالبة، والمتبقي يُمرر كسقف للتشغيل الحي | `Orchestrator.budgetRemaining` | `budget.test.ts`، وطفرتان |
+| رموز API تنتهي (90 يومًا افتراضيًا، 365 حدًا أقصى)، والرموز بلا انتهاء تُرفض | `ControlPlane.issueToken/authenticate` | `api.test.ts`، وطفرة |
+| نسخة احتياطية قابلة للتحقق: لقطة متسقة، وتثبيت مقصوص عند رأس اللقطة، وmanifest بـ SHA-256 | `ops/backup.ts` | `ops/backup.test.ts` (تمرين استعادة كامل) |
+| CI على كل push: typecheck، واختبارات، وevals، وفحص أسرار، و`npm audit` (high)، وSBOM، وPostgreSQL حقيقي | `.github/workflows/agentic-enterprise.yml` | تشغيل GitHub Actions رقم 1: نجح |
+
 ## 6. ضوابط مخططة (غير منفّذة)
 
 | الضابط | الأولوية | المرجع |
 |--------|----------|--------|
-| فحص الأسرار وSBOM وتدقيق الاعتماديات في CI | P1 | مسودة في `ci/github-workflow.yml` (ADR-016) |
-| انتهاء صلاحية تلقائي لرموز API | P2 | T18 |
-| ميزانيات تكلفة تراكمية مفروضة لكل وكيل | P1 | T13 |
 | SSO أو WebAuthn لمفاتيح الموافقين | P2 | ADR-009 |
 | تصدير رأس audit لطرف ثالث | P2 | ADR-008 |
 | تشفير القاعدة عند السكون | P2 | SC-28 |

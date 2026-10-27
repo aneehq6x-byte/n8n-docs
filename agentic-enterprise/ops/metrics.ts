@@ -115,6 +115,13 @@ export function computeMetrics(p: Platform): Metrics {
   if (injectionSuspected >= ALERT_THRESHOLDS.injectionSuspected) add("warning", "INJECTION_WAVE", `${injectionSuspected} tasks with prompt-injection markers in ${ALERT_THRESHOLDS.windowHours}h`, "Alert security; check the sender domains (runbook §6.3)");
   for (const [agent, t] of Object.entries(tools))
     if (t.calls >= ALERT_THRESHOLDS.toolErrorMinCalls && t.errorRate > ALERT_THRESHOLDS.toolErrorRate) add("warning", "TOOL_ERRORS", `${agent}: tool error rate ${(t.errorRate * 100).toFixed(1)}%`, "Check connector health (runbook §6.4)");
+  for (const a of p.orchestrator.registeredAgents()) {
+    const cap = p.orchestrator.dailyBudget(a.id);
+    if (cap === Infinity) continue;
+    const spent = p.orchestrator.spentLast24h(a.id);
+    if (spent >= cap) add("critical", "BUDGET_EXHAUSTED", `${a.id} spent $${spent.toFixed(2)} of its $${cap} daily budget; its tasks wait in the queue`, "Investigate for loops, then raise dailyBudgetUsd deliberately or wait for the window");
+    else if (spent >= 0.8 * cap) add("warning", "BUDGET_NEAR", `${a.id} at ${Math.round((100 * spent) / cap)}% of its $${cap} daily budget`, "Check for unusual volume or loops");
+  }
   if (costTotal > ALERT_THRESHOLDS.dailyCostUsd) add("warning", "COST", `Model cost $${costTotal} in ${ALERT_THRESHOLDS.windowHours}h`, "Check for loops; lower effort or pause live mode");
 
   return {

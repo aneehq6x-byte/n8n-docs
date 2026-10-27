@@ -38,6 +38,14 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run eval
+      - name: Dependency audit (runtime deps, high and above)
+        run: npm audit --omit=dev --audit-level=high
+      - name: SBOM (CycloneDX)
+        run: npm sbom --sbom-format cyclonedx --omit=dev > sbom.cdx.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: agentic-enterprise/sbom.cdx.json
       - name: Secret scan
         run: |
           if grep -rEn --exclude-dir=node_modules -e 'sk-ant-[A-Za-z0-9_-]{20,}' -e 'BEGIN (RSA |EC )?PRIVATE KEY' .; then
