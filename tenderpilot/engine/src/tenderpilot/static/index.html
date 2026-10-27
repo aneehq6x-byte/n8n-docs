@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TenderPilot AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f5f7f9; --panel: #ffffff; --text: #10212b; --muted: #5b6f7c; --line: #dfe5ea;
+  --brand: #0b4f6c; --accent: #b8892f; --go: #1f8a4c; --review: #b7791f; --nogo: #c0392b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b1f2a; --panel: #122e3d; --text: #eef3f6; --muted: #9db2bf; --line: #1f4253;
+    --brand: #3fc1b0; --accent: #d9b36a; --go: #4cc27a; --review: #e0b04c; --nogo: #e06b6b;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b1f2a; --panel: #122e3d; --text: #eef3f6; --muted: #9db2bf; --line: #1f4253;
+  --brand: #3fc1b0; --accent: #d9b36a; --go: #4cc27a; --review: #e0b04c; --nogo: #e06b6b;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.7 "IBM Plex Sans Arabic", system-ui, sans-serif; }
+header { display: flex; justify-content: space-between; align-items: center;
+  padding: 16px; max-width: 1100px; margin: 0 auto; }
+header b { font-size: 20px; } header b span { color: var(--accent); }
+button.ghost { background: none; border: 1px solid var(--line); color: var(--text);
+  border-radius: 8px; padding: 6px 12px; cursor: pointer; font: inherit; }
+main { max-width: 1100px; margin: 0 auto; padding: 0 16px 48px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 16px; }
+h1 { font-size: 24px; margin: 0 0 4px; } h2 { font-size: 20px; margin: 0 0 4px; }
+.step { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
+  background: var(--brand); color: #fff; font-size: 15px; margin-inline-end: 8px; }
+.muted { color: var(--muted); }
+label { display: block; font-weight: 600; margin: 14px 0 6px; }
+label small { font-weight: 400; color: var(--muted); }
+input, textarea { width: 100%; font: inherit; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+textarea { min-height: 84px; resize: vertical; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+details summary { cursor: pointer; font-weight: 600; }
+.primary { margin-top: 16px; background: var(--brand); color: #fff; border: 0; border-radius: 10px;
+  padding: 12px 22px; font: inherit; font-weight: 700; cursor: pointer; }
+.primary:disabled { opacity: .6; cursor: wait; }
+.error { color: var(--nogo); font-weight: 600; }
+.ok { color: var(--go); font-weight: 600; }
+.score { display: grid; grid-template-columns: 160px 1fr; gap: 20px; align-items: center; }
+.ring { width: 150px; height: 150px; border-radius: 50%; display: grid; place-items: center;
+  background: conic-gradient(var(--c) calc(var(--v) * 1%), var(--line) 0); }
+.ring div { width: 118px; height: 118px; border-radius: 50%; background: var(--panel);
+  display: grid; place-items: center; font-size: 38px; font-weight: 700; }
+.badge { display: inline-block; padding: 4px 12px; border-radius: 999px; color: #fff; font-weight: 700; }
+.factors { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+.factors td { border-top: 1px solid var(--line); padding: 6px 4px; }
+.pos { color: var(--go); } .neg { color: var(--nogo); }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; align-items: center; }
+.md { overflow-x: auto; }
+.md table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 8px 0 18px; }
+.md th, .md td { border: 1px solid var(--line); padding: 6px 8px; vertical-align: top; }
+.md th { background: var(--bg); }
+.md td:nth-child(2) { unicode-bidi: plaintext; }
+@media (max-width: 640px) {
+  .score { grid-template-columns: 1fr; justify-items: center; }
+  .grid { grid-template-columns: 1fr; }
+}
+@media print { header, #profilePanel, #analyzePanel, .actions, #proposalPanel { display: none; } }
+</style>
+</head>
+<body>
+<header>
+  <b>Tender<span>Pilot</span> AI</b>
+  <button class="ghost" id="theme" type="button">الوضع ◐</button>
+</header>
+<main>
+  <section class="panel" id="profilePanel">
+    <details id="profileBox">
+      <summary><span class="step">1</span>ملف الشركة <span class="muted" id="profileState"></span></summary>
+      <p class="muted">يُعبّأ مرة واحدة ويُحفظ في هذا المتصفح. مطلوب لحساب درجة الملاءمة وكتابة العرض. سطر لكل عنصر.</p>
+      <div class="grid">
+        <div><label for="p_name">اسم الشركة</label><input id="p_name"></div>
+        <div><label for="p_regions">المناطق التي تعمل بها</label><textarea id="p_regions"></textarea></div>
+        <div><label for="p_activities">الأنشطة</label><textarea id="p_activities"></textarea></div>
+        <div><label for="p_classifications">التصنيفات <small>(مثل تصنيف المقاولين ودرجته)</small></label><textarea id="p_classifications"></textarea></div>
+        <div><label for="p_certifications">الشهادات <small>(ISO وغيرها)</small></label><textarea id="p_certifications"></textarea></div>
+        <div><label for="p_staff">الكوادر الرئيسية <small>(الدور والمؤهل والخبرة)</small></label><textarea id="p_staff"></textarea></div>
+      </div>
+      <label for="p_projects">المشاريع السابقة <small>— سطر لكل مشروع: العنوان | الجهة | القيمة بالريال | السنة | وصف مختصر</small></label>
+      <textarea id="p_projects"></textarea>
+      <div class="grid">
+        <div><label for="p_team">عدد الموظفين</label><input id="p_team" type="number" min="0"></div>
+        <div><label for="p_revenue">الإيرادات السنوية (ريال)</label><input id="p_revenue" type="number" min="0"></div>
+        <div><label for="p_max">أكبر عقد تستطيع الشركة تنفيذه (ريال)</label><input id="p_max" type="number" min="0"></div>
+        <div><label for="p_local">نسبة المحتوى المحلي (%)</label><input id="p_local" type="number" min="0" max="100"></div>
+      </div>
+      <div class="actions">
+        <button class="ghost" id="saveProfile" type="button">حفظ</button>
+        <button class="ghost" id="exportProfile" type="button">تنزيل كملف</button>
+        <label class="ghost" style="margin:0;font-weight:400;border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer">
+          استيراد من ملف<input id="importProfile" type="file" accept="application/json" hidden></label>
+        <span id="profileMsg" class="muted"></span>
+      </div>
+    </details>
+  </section>
+
+  <section class="panel" id="analyzePanel">
+    <h1><span class="step">2</span>تحليل كراسة الشروط</h1>
+    <p class="muted">ارفع الكراسة (PDF). يستغرق التحليل عادة بضع دقائق.</p>
+    <form id="form">
+      <input id="file" type="file" accept="application/pdf" required>
+      <div class="actions">
+        <button class="primary" id="go" type="submit" style="margin:0">حلّل الكراسة</button>
+        <label class="ghost" style="margin:0;font-weight:400;border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer">
+          أو افتح تحليلاً محفوظاً (.json)<input id="openAnalysis" type="file" accept="application/json" hidden></label>
+      </div>
+      <span id="status" class="muted"></span>
+    </form>
+  </section>
+
+  <section class="panel" id="scorePanel" hidden></section>
+
+  <section class="panel" id="reportPanel" hidden>
+    <div class="actions">
+      <button class="ghost" id="dlJson" type="button">حفظ التحليل (.json)</button>
+      <button class="ghost" id="dlMd" type="button">تنزيل التقرير (.md)</button>
+      <button class="ghost" id="print" type="button">طباعة / PDF</button>
+    </div>
+    <p class="muted">احفظ التحليل لتعود إليه لاحقاً دون إعادة التحليل ودفع تكلفته مجدداً.</p>
+    <article id="report" class="md"></article>
+  </section>
+
+  <section class="panel" id="proposalPanel" hidden>
+    <h2><span class="step">3</span>مسودة العرض الفني</h2>
+    <p class="muted">يكتب المحرّك مسودة العرض بصيغة Word من التحليل وملف الشركة. ما ينقصه من معلومات يُظلَّل بالأصفر ولا يُخترع.</p>
+    <label for="notes">توجيهات الفريق <small>(اختياري: الشركاء، مقاولو الباطن، نقاط القوة التي تريد إبرازها)</small></label>
+    <textarea id="notes"></textarea>
+    <button class="primary" id="write" type="button">اكتب مسودة العرض</button>
+    <span id="writeStatus" class="muted"></span>
+    <div id="proposalResult" hidden>
+      <div class="actions">
+        <button class="primary" id="dlDocx" type="button" style="margin:0">تنزيل العرض (Word)</button>
+        <button class="ghost" id="dlProposal" type="button">حفظ المسودة (.json)</button>
+      </div>
+      <article id="review" class="md"></article>
+    </div>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const REC = { go: ["تقدّم (Go)", "--go"], review: ["مراجعة قبل القرار", "--review"], no_go: ["لا تتقدّم (No-Go)", "--nogo"] };
+const CONF = { high: "عالية", medium: "متوسطة", low: "منخفضة" };
+const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+let analysis = null, report = "", proposal = null;
+
+// ---------- storage (per-browser convenience; never required) ----------
+function load(key) { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } }
+function store(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} }
+
+const theme = load("tp-theme");
+if (theme) document.documentElement.dataset.theme = theme;
+$("theme").onclick = () => {
+  const current = document.documentElement.dataset.theme
+    || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  const next = current === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  store("tp-theme", next);
+};
+
+function esc(s) { const d = document.createElement("div"); d.textContent = s ?? ""; return d.innerHTML; }
+
+// ---------- company profile form ----------
+const LISTS = { activities: "p_activities", classifications: "p_classifications", certifications: "p_certifications",
+                key_staff: "p_staff", regions: "p_regions" };
+const NUMBERS = { team_size: "p_team", annual_revenue_sar: "p_revenue", max_single_contract_sar: "p_max",
+                  local_content_percent: "p_local" };
+const lines = (v) => v.split("\n").map(s => s.trim()).filter(Boolean);
+const num = (v) => (v === "" || v == null || isNaN(Number(v)) ? null : Number(v));
+
+function readProfile() {
+  const name = $("p_name").value.trim();
+  if (!name) return null;
+  const p = { name };
+  for (const [k, id] of Object.entries(LISTS)) p[k] = lines($(id).value);
+  for (const [k, id] of Object.entries(NUMBERS)) { const n = num($(id).value); if (n !== null) p[k] = n; }
+  p.past_projects = lines($("p_projects").value).map(l => {
+    const [title, client, value, year, description] = l.split("|").map(s => s.trim());
+    return { title, client: client || null, value_sar: num(value), year: num(year), description: description || null };
+  });
+  return p;
+}
+
+function writeProfile(p) {
+  if (!p) return;
+  $("p_name").value = p.name || "";
+  for (const [k, id] of Object.entries(LISTS)) $(id).value = (p[k] || []).join("\n");
+  for (const [k, id] of Object.entries(NUMBERS)) $(id).value = p[k] ?? "";
+  $("p_projects").value = (p.past_projects || []).map(x =>
+    [x.title, x.client, x.value_sar, x.year, x.description].map(v => v ?? "").join(" | ")).join("\n");
+}
+
+function profileStatus() {
+  const p = readProfile();
+  $("profileState").textContent = p ? `— ${p.name}` : "— لم يُعبّأ بعد";
+  $("proposalPanel").hidden = !(analysis && p);
+}
+
+writeProfile(load("tp-profile"));
+if (!readProfile()) $("profileBox").open = true;
+profileStatus();
+$("profilePanel").addEventListener("input", profileStatus);
+$("saveProfile").onclick = () => {
+  const p = readProfile();
+  if (!p) { $("profileMsg").innerHTML = '<span class="error">اكتب اسم الشركة أولاً.</span>'; return; }
+  store("tp-profile", p);
+  $("profileMsg").innerHTML = '<span class="ok">حُفظ في هذا المتصفح.</span>';
+};
+$("exportProfile").onclick = () => {
+  const p = readProfile();
+  if (p) download("company-profile.json", JSON.stringify(p, null, 2), "application/json");
+};
+$("importProfile").onchange = async (e) => {
+  try { writeProfile(JSON.parse(await e.target.files[0].text())); profileStatus();
+        $("profileMsg").innerHTML = '<span class="ok">تم الاستيراد. اضغط حفظ للاحتفاظ به.</span>'; }
+  catch { $("profileMsg").innerHTML = '<span class="error">الملف ليس ملف شركة صالحاً.</span>'; }
+};
+
+// ---------- markdown subset renderer ----------
+// Renders the Markdown subset the engine emits. All text is escaped before any
+// markup is added, so model-generated content can't inject HTML. No external
+// libraries: customer networks often block CDNs.
+function inline(s) {
+  return esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/^_(.+)_$/, "<em>$1</em>");
+}
+function cells(line) {
+  return line.trim().replace(/^\||\|$/g, "").split(/(?<!\\)\|/).map(c => c.replace(/\\\|/g, "|").trim());
+}
+function mdToHtml(md) {
+  const ls = md.split("\n"), out = [];
+  for (let i = 0; i < ls.length; i++) {
+    const l = ls[i];
+    if (l.startsWith("|")) {
+      const head = cells(l); i += 1; // skip the |---| separator
+      const rows = [];
+      while (i + 1 < ls.length && ls[i + 1].startsWith("|")) rows.push(cells(ls[++i]));
+      out.push("<table><thead><tr>" + head.map(c => `<th>${inline(c)}</th>`).join("") + "</tr></thead><tbody>"
+        + rows.map(r => "<tr>" + r.map(c => `<td>${inline(c)}</td>`).join("") + "</tr>").join("") + "</tbody></table>");
+    } else if (/^#{1,3} /.test(l)) {
+      const n = l.indexOf(" ");
+      out.push(`<h${n + 1}>${inline(l.slice(n + 1))}</h${n + 1}>`);
+    } else if (/^(- |\d+\. )/.test(l)) {
+      const ordered = /^\d/.test(l), items = [];
+      i -= 1;
+      while (i + 1 < ls.length && /^(- |\d+\. )/.test(ls[i + 1])) {
+        items.push(inline(ls[++i].replace(/^(- |\d+\. )/, "")).replace(/^\[ \] /, "☐ "));
+      }
+      const tag = ordered ? "ol" : "ul";
+      out.push(`<${tag}>${items.map(x => `<li>${x}</li>`).join("")}</${tag}>`);
+    } else if (l.trim() === "---") {
+      out.push("<hr>");
+    } else if (l.trim()) {
+      out.push(`<p>${inline(l)}</p>`);
+    }
+  }
+  return out.join("\n");
+}
+
+// ---------- helpers ----------
+function download(name, data, type) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(data instanceof Blob ? data : new Blob([data], { type }));
+  a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function post(url, body) {
+  const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!r.ok) {
+    const b = await r.json().catch(() => ({}));
+    throw new Error(typeof b.detail === "string" ? b.detail : `خطأ ${r.status}`);
+  }
+  return r;
+}
+function ticker(el, label) {
+  const started = Date.now();
+  const t = setInterval(() => { el.textContent = ` ${label}… ${Math.round((Date.now() - started) / 1000)} ث`; }, 1000);
+  return () => { clearInterval(t); return Math.round((Date.now() - started) / 1000); };
+}
+
+// ---------- analysis ----------
+function renderScore(score) {
+  const p = $("scorePanel");
+  if (!score) { p.hidden = true; return; }
+  const [label, color] = REC[score.recommendation];
+  const rows = score.factors.map(f =>
+    `<tr><td>${esc(f.label)}</td><td class="${f.impact >= 0 ? "pos" : "neg"}" dir="ltr">${f.impact > 0 ? "+" : ""}${f.impact}</td><td class="muted">${esc(f.detail)}</td></tr>`).join("");
+  const gaps = score.blocking_gaps.length
+    ? `<p class="error">فجوات قد تؤدي للاستبعاد:</p><ul>${score.blocking_gaps.map(g => `<li>${esc(g)}</li>`).join("")}</ul>` : "";
+  p.innerHTML = `<div class="score">
+      <div class="ring" style="--v:${score.score};--c:var(${color})"><div>${score.score}</div></div>
+      <div><span class="badge" style="background:var(${color})">${label}</span>
+        <span class="muted">· الثقة: ${CONF[score.confidence]}</span>
+        <table class="factors">${rows}</table>${gaps}</div></div>`;
+  p.hidden = false;
+}
+
+async function showAnalysis(result) {
+  analysis = result; proposal = null;
+  $("proposalResult").hidden = true; $("writeStatus").textContent = "";
+  renderScore(result.score);
+  report = await (await post("/v1/report", result)).text();
+  $("report").innerHTML = mdToHtml(report);
+  $("reportPanel").hidden = false;
+  profileStatus();
+}
+
+$("form").onsubmit = async (e) => {
+  e.preventDefault();
+  const fd = new FormData();
+  fd.append("file", $("file").files[0]);
+  const profile = readProfile();
+  if (profile) fd.append("company_profile", JSON.stringify(profile));
+  $("go").disabled = true;
+  const stop = ticker($("status"), "جارٍ التحليل");
+  try {
+    const r = await fetch("/v1/analyze", { method: "POST", body: fd });
+    const body = await r.json();
+    if (!r.ok) throw new Error(typeof body.detail === "string" ? body.detail : `خطأ ${r.status}`);
+    await showAnalysis(body);
+    $("status").innerHTML = `<span class="ok">اكتمل في ${stop()} ث.</span>`
+      + (profile ? "" : " عبّئ ملف الشركة وأعد التحليل للحصول على درجة الملاءمة.");
+  } catch (err) {
+    stop(); $("status").innerHTML = `<span class="error">${esc(err.message)}</span>`;
+  } finally {
+    $("go").disabled = false;
+  }
+};
+
+$("openAnalysis").onchange = async (e) => {
+  try {
+    await showAnalysis(JSON.parse(await e.target.files[0].text()));
+    $("status").innerHTML = '<span class="ok">تم فتح التحليل المحفوظ.</span>';
+  } catch (err) {
+    $("status").innerHTML = `<span class="error">تعذّر فتح الملف: ${esc(err.message)}</span>`;
+  }
+  e.target.value = "";
+};
+
+$("dlJson").onclick = () => download("tender-analysis.json", JSON.stringify(analysis, null, 2), "application/json");
+$("dlMd").onclick = () => download("tender-report.md", report, "text/markdown");
+$("print").onclick = () => window.print();
+
+// ---------- proposal ----------
+$("write").onclick = async () => {
+  const profile = readProfile();
+  if (!analysis || !profile) return;
+  $("write").disabled = true;
+  const stop = ticker($("writeStatus"), "جارٍ كتابة المسودة");
+  try {
+    const body = { analysis, profile, notes: $("notes").value.trim() || null };
+    proposal = await (await post("/v1/proposal", body)).json();
+    const review = await (await post("/v1/proposal/review", proposal)).text();
+    $("review").innerHTML = mdToHtml(review);
+    $("proposalResult").hidden = false;
+    $("writeStatus").innerHTML = `<span class="ok">اكتملت في ${stop()} ث.</span>`;
+  } catch (err) {
+    stop(); $("writeStatus").innerHTML = `<span class="error">${esc(err.message)}</span>`;
+  } finally {
+    $("write").disabled = false;
+  }
+};
+
+$("dlDocx").onclick = async () => {
+  try {
+    const r = await post("/v1/proposal/docx", { result: proposal, analysis });
+    download("technical-proposal.docx", await r.blob(), DOCX);
+  } catch (err) {
+    $("writeStatus").innerHTML = `<span class="error">${esc(err.message)}</span>`;
+  }
+};
+$("dlProposal").onclick = () => download("technical-proposal.json", JSON.stringify(proposal, null, 2), "application/json");
+</script>
+</body>
+</html>
