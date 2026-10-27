@@ -122,7 +122,7 @@ async def grant_period(session: AsyncSession, user: User, plan: Plan,
     sub = Subscription(user_id=user.id, plan_id=plan.id,
                        payment_id=payment.id if payment else None,
                        starts_at=start, ends_at=end, status=SubscriptionStatus.ACTIVE,
-                       auto_renew=auto_renew)
+                       auto_renew=auto_renew, created_at=now)
     session.add(sub)
     await session.flush()
     await audit(session, actor, "subscription.granted", f"user:{user.id}",

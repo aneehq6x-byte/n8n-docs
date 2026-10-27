@@ -176,7 +176,7 @@ async def process_successful_payment(
         return PaymentResult(dup, False, None)
 
     session.add(LedgerEntry(payment_id=p.id, kind="charge", currency=currency,
-                            amount_minor=total_amount))
+                            amount_minor=total_amount, created_at=now))
     if p.coupon_code:
         from umip.models import Coupon
         c = await session.scalar(select(Coupon).where(Coupon.code == p.coupon_code))
@@ -210,7 +210,7 @@ async def refund(session: AsyncSession, gateway: StarsGateway, payment_id: int, 
     p.status = PaymentStatus.REFUNDED
     p.refunded_at = now
     session.add(LedgerEntry(payment_id=p.id, kind="refund", currency=p.currency,
-                            amount_minor=-p.amount_minor))
+                            amount_minor=-p.amount_minor, created_at=now))
     sub = await session.scalar(select(Subscription).where(Subscription.payment_id == p.id))
     if sub:
         sub.status = SubscriptionStatus.REFUNDED

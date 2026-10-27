@@ -78,7 +78,7 @@ async def overview(request: Request, actor: str = SUPPORT) -> dict:
     async with _maker(request)() as s:
         biz = await business_metrics(s, now)
         counts = dict((k.value, v) for k, v in (await s.execute(
-            select(Signal.status, func.count(Signal.id)).where(Signal.kind == ResultKind.PUBLISHED)
+            select(Signal.status, func.count(Signal.id)).where(Signal.kind != ResultKind.BACKTEST)
             .group_by(Signal.status))).all())
         pending_review = await s.scalar(select(func.count(Signal.id)).where(
             Signal.status == SignalStatus.VALIDATED)) or 0
@@ -335,7 +335,9 @@ async def decide(request: Request, ref: str, d: Decision, actor: str = ANALYST) 
                 return {"status": sig.status.value}
             mode = await effective_publish_mode(s, settings)
             await sigsvc.approve(s, sig, actor, mode)
-            if d.publish and sig.kind == ResultKind.PUBLISHED:
+            if d.publish and sig.kind != ResultKind.PUBLISHED:
+                await sigsvc.publish_paper(s, sig, actor)
+            elif d.publish:
                 if not settings.private_channel_id:
                     raise HTTPException(409, "private channel not configured")
                 await sigsvc.publish(s, sig, settings.private_channel_id, render_signal, actor)
@@ -535,8 +537,11 @@ async def system(request: Request, actor: str = SUPPORT) -> dict:
                                        .group_by(OutboundMessage.status))).all())
         dead = (await s.scalars(select(OutboundMessage).where(OutboundMessage.status == "dead")
                                 .order_by(OutboundMessage.id.desc()).limit(50))).all()
+        pending = await s.scalar(select(func.count(Signal.id)).where(
+            Signal.status == SignalStatus.VALIDATED)) or 0
         return {
             "env": settings.env.value, "kill_switch": bool(await get_flag(s, KILL_SWITCH, False)),
+            "pending_review": pending,
             "publish_mode": (await effective_publish_mode(s, settings)).value,
             "publish_mode_default": settings.publish_mode.value,
             "strategies": [{"name": n, "disabled": n in (await get_flag(s, DISABLED_STRATEGIES, []) or [])}

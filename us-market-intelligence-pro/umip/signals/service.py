@@ -131,6 +131,22 @@ async def publish(session: AsyncSession, sig: Signal, chat_id: int, render, acto
     return True
 
 
+async def publish_paper(session: AsyncSession, sig: Signal, actor: str,
+                        now: datetime | None = None) -> bool:
+    """Paper/backtest signals are tracked like published ones but never sent to subscribers."""
+    now = now or utcnow()
+    if sig.kind == ResultKind.PUBLISHED:
+        raise PermissionError("subscriber signals must go through publish()")
+    if ensure_utc(sig.valid_until) <= now:
+        await _transition(session, sig, S.EXPIRED, "publisher", "expired before publication")
+        await session.commit()
+        return False
+    await _transition(session, sig, S.PUBLISHED, actor, "paper: not sent to subscribers")
+    sig.published_at = now
+    await session.commit()
+    return True
+
+
 async def update_status(session: AsyncSession, sig: Signal, to: S, actor: str, chat_id: int,
                         render_update, note: str | None = None, data: dict | None = None) -> None:
     await _transition(session, sig, to, actor, note, data)

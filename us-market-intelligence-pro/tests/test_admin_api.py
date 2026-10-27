@@ -147,9 +147,17 @@ async def test_paper_signal_is_not_published_to_channel(client, maker):
     r = await client.post("/admin/signals", json={**MANUAL, "kind": "paper"}, headers=ANA)
     ref = r.json()["ref"]
     r = await client.post(f"/admin/signals/{ref}/decision", json={"approve": True}, headers=ANA)
-    assert r.json()["status"] == "approved"
+    assert r.json()["status"] == "published"  # tracked as paper, never sent
+    r = await client.post(f"/admin/signals/{ref}/status", json={"to": "active"}, headers=ANA)
+    assert r.json()["status"] == "active"
+    r = await client.post(f"/admin/signals/{ref}/status", json={"to": "target2_hit", "r_net": 2.0},
+                          headers=ANA)
+    assert r.json()["status"] == "target2_hit"
     async with maker() as s:
         assert (await s.scalars(select(OutboundMessage))).all() == []
+    paper = (await client.get("/admin/performance?kind=paper", headers=ANA)).json()
+    published = (await client.get("/admin/performance?kind=published", headers=ANA)).json()
+    assert paper["overall"]["trades"] == 1 and published["overall"]["trades"] == 0
 
 
 async def test_cancel_before_publication(client):
