@@ -146,3 +146,18 @@ def test_api_markdown_and_errors(make_analyzer, extraction, profile, blank_pdf):
         data={"company_profile": json.dumps({"activities": []})},  # missing name
     )
     assert r.status_code == 422
+
+
+def test_access_password_protects_everything_but_healthz(make_analyzer, extraction):
+    import base64
+
+    analyzer, _ = make_analyzer({"extract": extraction})
+    client = TestClient(create_app(analyzer, access_password="s3cret"))
+    auth = lambda pw: {"Authorization": "Basic " + base64.b64encode(f"x:{pw}".encode()).decode()}  # noqa: E731
+
+    assert client.get("/healthz").status_code == 200
+    r = client.get("/")
+    assert r.status_code == 401 and r.headers["www-authenticate"].startswith("Basic")
+    assert client.get("/", headers=auth("wrong")).status_code == 401
+    assert client.get("/", headers={"Authorization": "Basic !!!"}).status_code == 401
+    assert client.get("/", headers=auth("s3cret")).status_code == 200

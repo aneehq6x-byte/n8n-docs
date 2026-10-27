@@ -115,6 +115,12 @@ def test_proposal_api(analysis, profile, draft):
     r = client.post("/v1/proposal?format=review", json=body)
     assert "مراجعة داخلية" in r.text
 
+    # Stored proposals re-render without a model call (the UI uses these).
+    stored = client.post("/v1/proposal", json=body).json()
+    assert "مراجعة داخلية" in client.post("/v1/proposal/review", json=stored).text
+    r = client.post("/v1/proposal/docx", json={"result": stored, "analysis": body["analysis"]})
+    assert r.status_code == 200 and r.content[:2] == b"PK"
+
     body["analysis"]["extraction"]["requirements"] = []
     assert client.post("/v1/proposal", json=body).status_code == 422
 

@@ -23,6 +23,7 @@ dev = ["pytest>=8", "httpx>=0.27"]
 [project.scripts]
 tenderpilot-analyze = "tenderpilot.cli:main"
 tenderpilot-write = "tenderpilot.cli:write_main"
+tenderpilot-eval = "tenderpilot.evals:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

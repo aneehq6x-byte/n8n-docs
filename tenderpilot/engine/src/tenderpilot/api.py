@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import base64
 import logging
+import os
+import secrets
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Annotated, Literal
 
 import anthropic
-from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse, Response
 from pydantic import ValidationError
 
@@ -44,8 +47,38 @@ def _http_errors() -> Iterator[None]:
         raise HTTPException(502, "تعذّر الوصول إلى خدمة النموذج.") from exc
 
 
-def create_app(analyzer: TenderAnalyzer | None = None, writer: BidWriter | None = None) -> FastAPI:
+def _password_ok(header: str, password: str) -> bool:
+    if not header.startswith("Basic "):
+        return False
+    try:
+        _, _, given = base64.b64decode(header[6:]).decode("utf-8").partition(":")
+    except ValueError:
+        return False
+    return secrets.compare_digest(given.encode(), password.encode())
+
+
+def create_app(
+    analyzer: TenderAnalyzer | None = None,
+    writer: BidWriter | None = None,
+    access_password: str | None = None,
+) -> FastAPI:
     app = FastAPI(title="TenderPilot Engine", version=__version__)
+    # Every analysis spends API credit: anything reachable from the internet must
+    # set TP_ACCESS_PASSWORD. The browser shows its own login prompt (any username).
+    password = access_password or os.getenv("TP_ACCESS_PASSWORD")
+    if password:
+
+        @app.middleware("http")
+        async def require_password(request: Request, call_next):
+            if request.url.path != "/healthz" and not _password_ok(
+                request.headers.get("authorization", ""), password
+            ):
+                return Response(
+                    "يتطلب كلمة المرور.",
+                    status_code=401,
+                    headers={"WWW-Authenticate": 'Basic realm="TenderPilot", charset="UTF-8"'},
+                )
+            return await call_next(request)
     state: dict[str, object] = {}
 
     # Built lazily so the app can start (and serve /healthz) without credentials.
@@ -115,6 +148,11 @@ def create_app(analyzer: TenderAnalyzer | None = None, writer: BidWriter | None 
     def proposal_docx(result: Proposal, analysis: AnalysisResult) -> Response:
         """Re-render a stored proposal as Word without a model call."""
         return Response(build_docx(result, analysis.extraction.risks), media_type=DOCX_TYPE)
+
+    @app.post("/v1/proposal/review", response_class=PlainTextResponse)
+    def proposal_review(result: Proposal) -> PlainTextResponse:
+        """Internal review checklist for a stored proposal (no model call)."""
+        return PlainTextResponse(review_notes(result), media_type="text/markdown; charset=utf-8")
 
     @app.get("/", include_in_schema=False)
     def index() -> FileResponse:
