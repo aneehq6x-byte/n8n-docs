@@ -22,3 +22,38 @@ jobs:
         env: {UMIP_TEST_DATABASE_URL: "postgresql+asyncpg://umip:ci@localhost/umip_test"}
       - run: alembic upgrade head && alembic check
         env: {UMIP_DATABASE_URL: "postgresql+asyncpg://umip:ci@localhost/umip_test"}
+
+  dashboard:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin-dashboard
+    services:
+      postgres:
+        image: postgres:16
+        env: {POSTGRES_USER: umip, POSTGRES_PASSWORD: ci, POSTGRES_DB: umip_demo}
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U umip" --health-interval 5s --health-retries 10
+    env:
+      UMIP_DATABASE_URL: postgresql+asyncpg://umip:ci@localhost/umip_demo
+      UMIP_ADMIN_API_KEYS: '{"demo-admin-key-0001":"admin","demo-analyst-key-0002":"analyst","demo-support-key-0003":"support"}'
+      UMIP_PRIVATE_CHANNEL_ID: "-1000000000001"
+      SESSION_SECRET: ci-session-secret-0123456789abcdef0123
+      UMIP_API_URL: http://127.0.0.1:8000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.13"}
+      - uses: actions/setup-node@v4
+        with: {node-version: "22", cache: npm, cache-dependency-path: admin-dashboard/package-lock.json}
+      - run: pip install -e ".."
+      - run: npm ci
+      - run: npx tsc --noEmit && npx eslint . && npx vitest run
+      - run: npx next build
+      - name: Seed demo data and start servers
+        run: |
+          (cd .. && alembic upgrade head && python -m scripts.seed_demo)
+          (cd .. && python -m umip.main api &) ; npx next start -p 3000 &
+          npx wait-on -t 60000 http://127.0.0.1:8000/health http://127.0.0.1:3000/login
+      - run: npx playwright install --with-deps chromium && npx playwright test

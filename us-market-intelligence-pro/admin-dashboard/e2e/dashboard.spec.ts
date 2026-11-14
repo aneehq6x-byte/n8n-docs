@@ -13,7 +13,7 @@ test.describe("authentication", () => {
     await page.goto("/login");
     await page.fill("#key", "not-a-real-key");
     await page.locator("form:has(#key) button[type=submit]").click();
-    await expect(page.getByRole("alert")).toBeVisible();
+    await expect(page.getByRole("alert").filter({ hasText: "المفتاح غير صالح" })).toBeVisible();
     expect((await page.context().cookies()).find((c) => c.name === "umip_session")).toBeUndefined();
   });
 
@@ -146,7 +146,7 @@ test("screenshots for visual review", async ({ browser }) => {
     const ctx = await browser.newContext({ viewport: { width: w, height: h }, colorScheme: scheme });
     const page = await ctx.newPage();
     await login(page, KEYS.admin, locale);
-    for (const [name, path] of [["overview", "/"], ["signals", "/signals?tab=all"], ["performance", "/performance?kind=paper"], ["users", "/users"], ["system", "/system"]]) {
+    for (const [name, path] of [["overview", "/"], ["signals", "/signals?tab=all"], ["performance", "/performance?kind=paper"], ["users", "/users"], ["system", "/system"]] as const) {
       await page.goto(path);
       await page.waitForLoadState("networkidle");
       await page.screenshot({ path: `${SHOTS}/${name}-${locale}-${scheme}-${w}.png`, fullPage: true });

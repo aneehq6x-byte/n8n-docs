@@ -37,6 +37,16 @@ services:
       migrate: {condition: service_completed_successfully}
     restart: unless-stopped
 
+  dashboard:
+    build: ./admin-dashboard
+    environment:
+      UMIP_API_URL: http://api:8000
+      SESSION_SECRET: ${DASHBOARD_SESSION_SECRET:?set DASHBOARD_SESSION_SECRET in .env}
+      SESSION_TTL_HOURS: "8"
+    ports: ["127.0.0.1:3000:3000"]  # put behind the same HTTPS reverse proxy; restrict by VPN/SSO
+    depends_on: [api]
+    restart: unless-stopped
+
 volumes:
   pgdata: {}
   redisdata: {}

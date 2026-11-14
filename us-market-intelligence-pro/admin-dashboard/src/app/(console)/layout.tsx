@@ -79,7 +79,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
               <Link href="/system"><Badge tone="critical"><AlertOctagon className="size-3" />{d.system.killSwitch}</Badge></Link>
             ) : null}
             {sys?.market_data_provider === "mock" ? (
-              <Badge tone="warning" className="hidden sm:inline-flex"><FlaskConical className="size-3" />MOCK DATA</Badge>
+              <span className="hidden sm:block"><Badge tone="warning"><FlaskConical className="size-3" />MOCK DATA</Badge></span>
             ) : null}
           </div>
           <PrefsBar locale={locale} theme={theme} d={d} />
