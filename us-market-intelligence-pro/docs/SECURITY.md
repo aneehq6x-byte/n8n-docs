@@ -17,11 +17,25 @@
 | حاوية بلا صلاحيات root | `USER app` في Dockerfile | — (البناء لم يُتحقق منه هنا) |
 | Rate limit للمساعد | حصة يومية لكل مستخدم | `test_ai_quota` |
 
+## لوحة الإدارة (Next.js BFF)
+
+| الضابط | التنفيذ | الاختبار |
+|--------|---------|----------|
+| المفتاح الإداري لا يصل للمتصفح | يُحفظ داخل JWE مشفّر (dir + A256GCM، مفتاح مشتق من `SESSION_SECRET`) في ملف تعريف `httpOnly; SameSite=Strict; Secure` | `seal.test.ts` + E2E يتحقق من الخصائص ومن غياب المفتاح |
+| كل الاستدعاءات من الخادم | Server Components/Actions فقط تتصل بالـ API؛ لا يوجد CORS ولا استدعاء من المتصفح | تصميم |
+| CSRF | Server Actions مع تحقق Next.js من الأصل + `SameSite=Strict` | تصميم |
+| تحقق الصلاحيات مرتين | حارس صفحات في الخادم + فرض الدور في الـ API | E2E للأدوار |
+| تأكيد الإجراءات الحرجة | مفتاح الإيقاف (كتابة STOP/RESUME)، الاسترداد (REFUND + سبب)، الحظر والرفض بسبب إلزامي | E2E |
+| رؤوس أمان | CSP، frame-ancestors none، HSTS، nosniff، Referrer-Policy، بدون X-Powered-By | مُتحقق في الإنتاج |
+| تحقق المدخلات | Zod في كل Server Action + Pydantic في الـ API | اختبارات API |
+
+ملاحظة: CSP يسمح بـ `'unsafe-inline'` للسكربتات التي يحقنها Next.js؛ التشديد بـ nonce مدرج في خارطة الطريق.
+
 ## مطلوب قبل الإنتاج (غير منفذ)
 
 1. **Rate limiting عام** على `/telegram/webhook` و`/admin/*` (Redis token bucket أو على مستوى
    الـ reverse proxy).
-2. **Admin API خلف SSO/VPN** إضافة لمفاتيح API، وتدوير المفاتيح، وتخزينها مُجزّأة (hash) بدل النص.
+2. **Admin API ولوحة الإدارة خلف SSO/VPN** إضافة لمفاتيح API، وتدوير المفاتيح، وتخزينها مُجزّأة (hash) بدل النص، و2FA للمشرفين.
 3. **تشفير الحقول الحساسة** (إن خُزنت بيانات شخصية إضافية) — حاليًا نخزن فقط Telegram ID واسم المستخدم.
 4. **TLS**: نشر خلف Caddy/Nginx بشهادة صالحة؛ Telegram يتطلب HTTPS للـ webhook.
 5. **النسخ الاحتياطي**: `pg_dump` يومي مشفر + WAL archiving، واختبار استعادة شهري.

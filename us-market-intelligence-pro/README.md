@@ -32,6 +32,8 @@ UMIP_DATABASE_URL=postgresql+asyncpg://user:pass@localhost/umip .venv/bin/alembi
 .venv/bin/python -m umip.main polling
 ```
 
+Admin dashboard (Next.js, Arabic/English): see [admin-dashboard/README.md](admin-dashboard/README.md).
+
 Docker: `docker compose up --build` (needs `.env` with `POSTGRES_PASSWORD`). Put the API behind an
 HTTPS reverse proxy and register the webhook with `secret_token = UMIP_TELEGRAM_WEBHOOK_SECRET`.
 
