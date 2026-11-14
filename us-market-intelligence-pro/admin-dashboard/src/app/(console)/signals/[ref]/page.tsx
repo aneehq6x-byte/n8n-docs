@@ -36,7 +36,8 @@ export default async function SignalDetailPage({ params }: { params: Promise<{ r
   const o = s.original;
   const opt = o.option;
   const Back = locale === "ar" ? ArrowRight : ArrowLeft;
-  const track = s.allowed_transitions.filter((t) => TRACKABLE.includes(t));
+  // Lifecycle order, so the default option is the next normal step (never "cancelled").
+  const track = TRACKABLE.filter((t) => s.allowed_transitions.includes(t));
   const isQueue = s.status === "validated";
 
   return (
