@@ -25,6 +25,7 @@ const ar = {
     createdAt: "تاريخ الإنشاء", viewTable: "عرض كجدول", viewChart: "عرض كرسم", dataAsOf: "البيانات حتى",
     riyadh: "الرياض", newYork: "نيويورك", forbidden: "صلاحياتك لا تسمح بهذا الإجراء.",
     backendDown: "تعذّر الاتصال بالخادم الخلفي.", notFound: "غير موجود", page: "صفحة",
+    notFoundBody: "العنصر المطلوب غير موجود أو تم حذفه.", home: "العودة للنظرة العامة",
   },
   auth: {
     title: "تسجيل الدخول", subtitle: "لوحة إدارة المنصة — للمشرفين المخوّلين فقط",
@@ -94,6 +95,7 @@ const ar = {
     block: "حظر المستخدم", unblock: "إلغاء الحظر", grant: "منح وصول مجاني", grantPlan: "الخطة",
     grantHint: "يُسجّل في سجل التدقيق مع السبب، دون دفعة مالية.", autoRenew: "تجديد تلقائي",
     member: "عضو", notMember: "ليس عضوًا", plan: "الخطة", period: "الفترة",
+    subStatus: { active: "نشط", cancelled: "التجديد موقوف", expired: "منتهٍ", refunded: "مسترد" },
   },
   payments: {
     title: "المدفوعات", subtitle: "عمليات نجوم تيليجرام المؤكدة من الخادم", id: "رقم العملية",
@@ -106,7 +108,7 @@ const ar = {
     title: "الخطط والكوبونات", subtitle: "الأسعار بالنجوم وحدود الاستخدام", code: "الرمز",
     nameAr: "الاسم بالعربية", nameEn: "الاسم بالإنجليزية", duration: "المدة (أيام)", price: "السعر",
     recurring: "اشتراك متجدد (30 يومًا)", fixed: "مدة وصول ثابتة", trial: "تجربة", aiQuota: "حصة المساعد اليومية",
-    edit: "تعديل", coupons: "الكوبونات", newCoupon: "كوبون جديد", percentOff: "نسبة الخصم",
+    days: "يومًا", edit: "تعديل", coupons: "الكوبونات", newCoupon: "كوبون جديد", percentOff: "نسبة الخصم",
     maxRedemptions: "حد الاستخدام", redemptions: "الاستخدامات", validUntil: "صالح حتى", plansScope: "الخطط المشمولة",
     allPlans: "كل الخطط", deactivate: "إيقاف", activate: "تفعيل", create: "إنشاء",
     capHint: "حد Telegram لسعر الاشتراك المتجدد: 10,000 نجمة", placeholderWarning: "الأسعار الحالية افتراضية للاختبار — حدّد الأسعار التجارية قبل الإطلاق.",
@@ -166,6 +168,7 @@ const en: DeepStrings<Dict> = {
     createdAt: "Created", viewTable: "View as table", viewChart: "View as chart", dataAsOf: "Data as of",
     riyadh: "Riyadh", newYork: "New York", forbidden: "Your role does not allow this action.",
     backendDown: "Could not reach the backend.", notFound: "Not found", page: "Page",
+    notFoundBody: "The requested item does not exist or was removed.", home: "Back to overview",
   },
   auth: {
     title: "Sign in", subtitle: "Platform administration — authorised staff only",
@@ -235,6 +238,7 @@ const en: DeepStrings<Dict> = {
     block: "Block user", unblock: "Unblock", grant: "Grant complimentary access", grantPlan: "Plan",
     grantHint: "Recorded in the audit log with the reason; no payment is created.", autoRenew: "Auto-renew",
     member: "Member", notMember: "Not a member", plan: "Plan", period: "Period",
+    subStatus: { active: "Active", cancelled: "Renewal off", expired: "Expired", refunded: "Refunded" },
   },
   payments: {
     title: "Payments", subtitle: "Telegram Stars transactions confirmed server-side", id: "ID",
@@ -247,7 +251,7 @@ const en: DeepStrings<Dict> = {
     title: "Plans & coupons", subtitle: "Prices in Stars and usage limits", code: "Code",
     nameAr: "Arabic name", nameEn: "English name", duration: "Duration (days)", price: "Price",
     recurring: "Recurring (30 days)", fixed: "Fixed access period", trial: "Trial", aiQuota: "Daily assistant quota",
-    edit: "Edit", coupons: "Coupons", newCoupon: "New coupon", percentOff: "Discount",
+    days: "days", edit: "Edit", coupons: "Coupons", newCoupon: "New coupon", percentOff: "Discount",
     maxRedemptions: "Usage limit", redemptions: "Redemptions", validUntil: "Valid until", plansScope: "Applies to",
     allPlans: "All plans", deactivate: "Deactivate", activate: "Activate", create: "Create",
     capHint: "Telegram cap for recurring subscription price: 10,000 Stars", placeholderWarning: "Current prices are test placeholders — set commercial prices before launch.",

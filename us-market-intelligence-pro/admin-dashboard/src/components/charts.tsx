@@ -20,7 +20,14 @@ function formatters(kind: ValueKind, locale: Locale) {
   return { format, compact };
 }
 
-export interface Point { x: string; y: number; label?: string }
+/** `label` appears in the tooltip and table; `tick` (shorter) on the axis. */
+export interface Point { x: string; y: number; label?: string; tick?: string }
+
+function tickEvery(points: Point[], innerWidth: number): number {
+  const longest = Math.max(4, ...points.map((p) => (p.tick ?? p.label ?? p.x).length));
+  const slot = Math.max(56, longest * 6.5 + 16);
+  return Math.max(1, Math.ceil(points.length / Math.max(2, Math.floor(innerWidth / slot))));
+}
 
 function useWidth<T extends HTMLElement>(fallback = 640) {
   const ref = useRef<T>(null);
@@ -107,7 +114,7 @@ export function ColumnChart({ points, kind, locale, height = 200, labels, ariaLa
   const band = iw / Math.max(points.length, 1);
   const bw = Math.min(24, Math.max(2, band - 2));
   const y = (v: number) => PAD.top + ih - (v / top) * ih;
-  const every = Math.ceil(points.length / Math.max(2, Math.floor(iw / 72)));
+  const every = tickEvery(points, iw);
   const h = hover !== null ? points[hover] : undefined;
 
   return (
@@ -136,7 +143,7 @@ export function ColumnChart({ points, kind, locale, height = 200, labels, ariaLa
                   />
                 ) : null}
                 {i % every === 0 ? (
-                  <text x={cx} y={height - 8} textAnchor="middle" fontSize={11} fill="var(--muted)" className="tnum">{p.label ?? p.x}</text>
+                  <text x={cx} y={height - 8} textAnchor="middle" fontSize={11} fill="var(--muted)" className="tnum">{p.tick ?? p.label ?? p.x}</text>
                 ) : null}
                 <rect x={PAD.left + band * i} y={PAD.top} width={band} height={ih} fill="transparent" onMouseEnter={() => setHover(i)} />
               </g>
@@ -175,7 +182,7 @@ export function LineChart({ points, kind, locale, height = 200, labels, ariaLabe
   const path = points.map((p, i) => `${i ? "L" : "M"}${x(i)},${y(p.y)}`).join(" ");
   const base = y(Math.max(tmin, Math.min(0, tmax)));
   const areaPath = points.length ? `${path} L${x(points.length - 1)},${base} L${x(0)},${base} Z` : "";
-  const every = Math.ceil(points.length / Math.max(2, Math.floor(iw / 72)));
+  const every = tickEvery(points, iw);
   const last = points[points.length - 1];
   const h = hover !== null ? points[hover] : undefined;
 
@@ -198,7 +205,7 @@ export function LineChart({ points, kind, locale, height = 200, labels, ariaLabe
           {area && points.length > 1 ? <path d={areaPath} fill="var(--series-1)" opacity={0.1} /> : null}
           {points.length > 1 ? <path d={path} fill="none" stroke="var(--series-1)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" /> : null}
           {points.map((p, i) => (i % every === 0 ? (
-            <text key={p.x} x={x(i)} y={height - 8} textAnchor="middle" fontSize={11} fill="var(--muted)" className="tnum">{p.label ?? p.x}</text>
+            <text key={p.x} x={x(i)} y={height - 8} textAnchor="middle" fontSize={11} fill="var(--muted)" className="tnum">{p.tick ?? p.label ?? p.x}</text>
           ) : null))}
           {h && hover !== null ? (
             <line x1={x(hover)} x2={x(hover)} y1={PAD.top} y2={PAD.top + ih} stroke="var(--baseline)" strokeWidth={1} />
@@ -234,7 +241,7 @@ export function DivergingBars({ rows, kind, locale }: { rows: { label: string; v
         const pos = r.value >= 0;
         return (
           <li key={r.label} className="grid grid-cols-[minmax(6rem,9rem)_1fr_4.5rem] items-center gap-3 text-xs">
-            <span className="truncate text-ink-2" title={r.label}>{r.label}{r.sub ? <span className="ms-1 text-muted">{r.sub}</span> : null}</span>
+            <span className="truncate text-ink-2" title={r.label}><bdi>{r.label}</bdi>{r.sub ? <bdi className="ms-1.5 text-muted">{r.sub}</bdi> : null}</span>
             <span className="relative h-3.5">
               <span className="absolute inset-y-0 left-1/2 w-px bg-[var(--baseline)]" aria-hidden />
               <span

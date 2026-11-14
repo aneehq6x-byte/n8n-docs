@@ -123,7 +123,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
                     <tr key={c.code} className="border-t border-line">
                       <td className="px-5 py-2.5 font-mono text-xs" dir="ltr">{c.code}</td>
                       <td className="px-5 py-2.5 tnum">{fmtNumber(c.percent_off / 100, locale, { style: "percent" })}</td>
-                      <td className="px-5 py-2.5 tnum">{fmtNumber(c.redemptions, locale)}{c.max_redemptions ? ` / ${fmtNumber(c.max_redemptions, locale)}` : ""}</td>
+                      <td className="px-5 py-2.5 tnum"><bdi dir="ltr">{fmtNumber(c.redemptions, locale)}{c.max_redemptions ? ` / ${fmtNumber(c.max_redemptions, locale)}` : ""}</bdi></td>
                       <td className="px-5 py-2.5 text-end tnum">{stars(c.revenue)}</td>
                     </tr>
                   ))}

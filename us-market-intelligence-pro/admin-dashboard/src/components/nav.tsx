@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 const ICONS = {
   overview: LayoutDashboard, signals: Activity, users: Users, payments: CreditCard, plans: Tags,
@@ -64,8 +64,6 @@ export function SideNav({ sections }: { sections: NavSection[] }) {
 
 export function MobileNav({ sections, brand, openLabel }: { sections: NavSection[]; brand: React.ReactNode; openLabel: string }) {
   const [open, setOpen] = useState(false);
-  const pathname = usePathname();
-  useEffect(() => setOpen(false), [pathname]);
   return (
     <div className="lg:hidden">
       <button type="button" onClick={() => setOpen(true)} aria-label={openLabel} aria-expanded={open}
