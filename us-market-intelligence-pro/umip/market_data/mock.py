@@ -16,7 +16,7 @@ from umip.timeutil import NY, utcnow
 
 SOURCE = "MOCK"
 BASE_PRICES = {"SPX": 6000.0, "SPY": 600.0, "NDX": 21000.0, "QQQ": 510.0, "RUT": 2300.0,
-               "IWM": 228.0, "DIA": 440.0, "VIX": 16.0}
+               "IWM": 228.0, "DIA": 440.0, "VIX": 16.0, "NVDA": 131.7, "MSFT": 420.0, "AAPL": 230.0}
 
 
 class MockProvider:

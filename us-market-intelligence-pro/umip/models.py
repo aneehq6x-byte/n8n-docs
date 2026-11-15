@@ -225,6 +225,9 @@ class Signal(Base):
     direction: Mapped[str] = mapped_column(String(8))  # long | short
     # Immutable snapshot of the signal as first validated (prices, contract, data source...).
     original: Mapped[dict] = mapped_column(JSON)
+    # Mutable tracker state (entry fill, working stop, MAE/MFE, last processed bar). Never
+    # changes ``original``; every state change is also recorded as a SignalEvent.
+    tracking: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     score: Mapped[float] = mapped_column(Float)
     detected_at: Mapped[datetime] = _ts()
     published_at: Mapped[datetime | None] = _ts(nullable=True)

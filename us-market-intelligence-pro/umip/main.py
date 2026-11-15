@@ -41,7 +41,12 @@ async def jobs_loop(maker, bot, settings, every_seconds: int = 60) -> None:
     from umip.jobs import signal_maintenance, subscription_maintenance
     from umip.notifications import dispatch
 
+    from umip.market_data.factory import build_provider
+    from umip.market_data.health import FeedHealth
+    from umip.signals.tracker import track_open_signals
+
     gw, sender = AiogramChatGateway(bot), AiogramSender(bot)
+    provider, health = build_provider(settings), FeedHealth()
     while True:
         try:
             async with maker() as s:
@@ -49,6 +54,7 @@ async def jobs_loop(maker, bot, settings, every_seconds: int = 60) -> None:
                                                settings.renewal_reminder_days,
                                                timedelta(hours=settings.expiry_grace_hours))
                 await signal_maintenance(s)
+                await track_open_signals(s, provider, health, settings.private_channel_id)
                 stats = await dispatch(s, sender)
                 if stats["dead"]:
                     log.error("outbox dead letters: %s", stats)
