@@ -124,6 +124,10 @@ async def track_signal(session: AsyncSession, sig: Signal, bars: list[Bar], now:
 
         if sig.status not in (S.ACTIVE, S.TARGET1_HIT):
             break
+        if state["entry"] is None:
+            # Marked active manually (no observed fill): assume the zone midpoint, flagged.
+            state["entry"], state["entry_assumed"] = round((el + eh) / 2, 4), True
+            state["entry_at"] = state.get("entry_at") or bt.isoformat()
         entry = state["entry"]
         adverse = (entry - b.low) if long else (b.high - entry)
         favorable = (b.high - entry) if long else (entry - b.low)

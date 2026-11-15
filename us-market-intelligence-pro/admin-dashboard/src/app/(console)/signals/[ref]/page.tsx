@@ -1,13 +1,13 @@
-import { ArrowLeft, ArrowRight, CheckCircle2, Clock, Database, FlaskConical, Lock, XCircle } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, CheckCircle2, Clock, Database, FlaskConical, Lock, RefreshCw, XCircle } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { decideSignal, updateSignalStatus } from "@/app/actions";
+import { decideSignal, runTracker, updateSignalStatus } from "@/app/actions";
 import { ActionForm, ConfirmAction } from "@/components/action-form";
 import { PriceLadder } from "@/components/price-ladder";
 import { DirectionTag, KindBadge, SignalStatusBadge } from "@/components/status";
 import { Badge, Card, CardBody, CardHeader, Field, Input, KeyValue, Notice, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
-import { fmtDual, fmtNumber, fmtPrice, relativeFromNow } from "@/lib/format";
+import { fmtDual, fmtNumber, fmtPrice, fmtR, relativeFromNow } from "@/lib/format";
 import { requireRole } from "@/lib/guard";
 import { getI18n } from "@/lib/prefs";
 import type { SignalDetail, SignalStatus } from "@/lib/types";
@@ -39,6 +39,13 @@ export default async function SignalDetailPage({ params }: { params: Promise<{ r
   // Lifecycle order, so the default option is the next normal step (never "cancelled").
   const track = TRACKABLE.filter((t) => s.allowed_transitions.includes(t));
   const isQueue = s.status === "validated";
+  const tr = s.tracking;
+  const open = ["published", "active", "target1_hit"].includes(s.status);
+  const risk = Math.abs((o.entry_low + o.entry_high) / 2 - o.stop);
+  const sign = s.direction === "long" ? 1 : -1;
+  const unrealized = tr?.entry != null && tr.last_price != null && (s.status === "active" || s.status === "target1_hit") && risk > 0
+    ? (sign * (tr.last_price - tr.entry)) / risk : null;
+  const T = d.signals.tracking;
 
   return (
     <>
@@ -77,6 +84,31 @@ export default async function SignalDetailPage({ params }: { params: Promise<{ r
               </div>
             </CardBody>
           </Card>
+
+          {open || tr ? (
+            <Card>
+              <CardHeader
+                title={<span className="inline-flex items-center gap-2"><Activity className="size-4 text-muted" />{T.title}</span>}
+                subtitle={T.model}
+                actions={open ? (
+                  <ActionForm action={runTracker} submitLabel={<><RefreshCw className="size-3.5" />{T.runNow}</>} variant="secondary" size="sm" savedLabel={T.ran} />
+                ) : null}
+              />
+              <CardBody>
+                {tr?.last_bar ? (
+                  <KeyValue items={[
+                    { k: T.entryFill, v: tr.entry != null ? <span className="tnum">{fmtPrice(tr.entry, locale)}{tr.entry_assumed ? <span className="ms-1.5 text-xs text-warning-text">({T.assumed})</span> : null}</span> : "—" },
+                    { k: T.workingStop, v: <span className="tnum">{fmtPrice(tr.stop, locale)}</span> },
+                    { k: T.lastPrice, v: <span className="tnum">{fmtPrice(tr.last_price, locale)}</span> },
+                    { k: `${T.unrealized} ≈`, v: <span className="tnum">{fmtR(unrealized, locale)}</span> },
+                    { k: T.mae, v: <span className="tnum">{fmtR(-tr.mae_r, locale)}</span> },
+                    { k: T.mfe, v: <span className="tnum">{fmtR(tr.mfe_r, locale)}</span> },
+                    { k: T.updated, v: <Dual at={tr.updated_at} locale={locale} riyadh={d.common.riyadh} /> },
+                  ]} />
+                ) : <p className="text-sm text-muted">{T.notStarted}</p>}
+              </CardBody>
+            </Card>
+          ) : null}
 
           {opt ? (
             <Card>

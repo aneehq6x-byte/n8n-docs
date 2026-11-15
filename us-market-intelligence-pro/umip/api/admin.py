@@ -215,7 +215,7 @@ def _signal_row(x: Signal) -> dict:
             "direction": x.direction, "score": x.score, "kind": x.kind.value,
             "is_mock": x.is_mock_data, "detected_at": x.detected_at, "published_at": x.published_at,
             "valid_until": x.valid_until, "closed_at": x.closed_at, "created_by": x.created_by,
-            "original": x.original}
+            "original": x.original, "tracking": x.tracking}
 
 
 @router.get("/signals")
@@ -381,6 +381,25 @@ async def update_signal_status(request: Request, ref: str, u: StatusUpdate,
         await audit(s, actor, f"signal.{to.value}", sig.ref, r_net=u.r_net)
         await s.commit()
         return {"status": sig.status.value}
+
+
+@router.post("/tracker/run")
+async def run_tracker(request: Request, actor: str = ANALYST) -> dict:
+    """Run one tracking pass now (the jobs loop also runs it every minute)."""
+    from umip.market_data.factory import build_provider
+    from umip.market_data.health import FeedHealth
+    from umip.signals.tracker import track_open_signals
+
+    state = request.app.state
+    if getattr(state, "provider", None) is None:
+        state.provider = build_provider(_settings(request))
+        state.feed_health = FeedHealth()
+    async with _maker(request)() as s:
+        results = await track_open_signals(s, state.provider, state.feed_health,
+                                           _settings(request).private_channel_id)
+        await audit(s, actor, "tracker.run", None, signals=len(results))
+        await s.commit()
+    return {"results": [{"ref": r.ref, "actions": r.actions, "skipped": r.skipped} for r in results]}
 
 
 # ------------------------------------------------------------- performance

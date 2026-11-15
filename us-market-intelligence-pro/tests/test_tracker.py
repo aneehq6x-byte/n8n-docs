@@ -176,3 +176,13 @@ async def test_paper_signal_tracked_without_messages(session):
     assert res[0].actions == ["active", "stopped"]
     assert await session.scalar(select(func.count(OutboundMessage.id))) == 0
     assert (await signal_performance(session, ResultKind.PAPER))["overall"]["trades"] == 1
+
+
+async def test_manually_activated_signal_uses_assumed_midpoint_entry(session):
+    s = await _open_signal(session)
+    await sig._transition(session, s, S.ACTIVE, "admin:analyst:1", "manual")
+    await session.commit()
+    res = await _run(session, [bar(0, 600.5, 600.6, 600.2, 600.4), bar(1, 600.4, 606.2, 600.3, 606.1)],
+                     T0 + timedelta(minutes=3))
+    assert res[0].actions == ["target2_hit"]
+    assert s.tracking["entry"] == 600.0 and s.tracking["entry_assumed"] is True

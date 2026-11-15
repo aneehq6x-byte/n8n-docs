@@ -250,3 +250,16 @@ async def test_churn_metric(client, maker):
         await s.commit()
     b = (await client.get("/admin/stats", headers=SUP)).json()
     assert b["churned_users_window"] == 1 and b["churn_rate_window"] == 1.0
+
+
+async def test_tracker_run_endpoint_and_tracking_field(client, maker):
+    ref = (await client.post("/admin/signals", json={**MANUAL, "kind": "paper"}, headers=ANA)).json()["ref"]
+    await client.post(f"/admin/signals/{ref}/decision", json={"approve": True}, headers=ANA)
+    assert (await client.post("/admin/tracker/run", headers=SUP)).status_code == 403
+    r = await client.post("/admin/tracker/run", headers=ANA)
+    assert r.status_code == 200
+    row = next(x for x in r.json()["results"] if x["ref"] == ref)
+    # demo env uses mock prices: a non-mock manual signal is never moved by mock data
+    assert row["skipped"] and row["actions"] == []
+    d = (await client.get(f"/admin/signals/{ref}", headers=ANA)).json()
+    assert "tracking" in d and d["status"] == "published"

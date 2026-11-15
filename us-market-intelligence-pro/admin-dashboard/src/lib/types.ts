@@ -61,6 +61,12 @@ export interface Signal {
   ref: string; status: SignalStatus; symbol: string; strategy: string; direction: "long" | "short";
   score: number; kind: ResultKind; is_mock: boolean; detected_at: string; published_at: string | null;
   valid_until: string; closed_at: string | null; created_by: string; original: SignalOriginal;
+  tracking: Tracking | null;
+}
+
+export interface Tracking {
+  entry: number | null; entry_at: string | null; stop: number; mae_r: number; mfe_r: number;
+  last_bar: string | null; last_price: number | null; updated_at: string | null; entry_assumed?: boolean;
 }
 
 export interface SignalEvent { from: string | null; to: string; actor: string; note: string | null; data: Record<string, unknown> | null; at: string }

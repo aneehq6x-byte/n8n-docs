@@ -239,3 +239,10 @@ export async function retryDeadLetter(_: ActionResult | null, fd: FormData): Pro
   revalidatePath("/system");
   return r;
 }
+
+export async function runTracker(): Promise<ActionResult> {
+  const r = await mutate("/admin/tracker/run", "POST");
+  revalidatePath("/signals", "layout");
+  revalidatePath("/performance");
+  return r;
+}
