@@ -32,6 +32,8 @@ services:
     environment:
       UMIP_DATABASE_URL: postgresql+asyncpg://umip:${POSTGRES_PASSWORD}@db/umip
       UMIP_REDIS_URL: redis://redis:6379/0
+      # The API is reached only through the reverse proxy / dashboard, which set X-Forwarded-For.
+      UMIP_TRUST_FORWARDED_FOR: "true"
     ports: ["127.0.0.1:8000:8000"]  # expose publicly only via an HTTPS reverse proxy
     depends_on:
       migrate: {condition: service_completed_successfully}

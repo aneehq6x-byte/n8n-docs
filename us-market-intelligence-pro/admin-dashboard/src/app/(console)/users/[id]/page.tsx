@@ -1,10 +1,10 @@
-import { ArrowLeft, ArrowRight, Ban, Gift, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Ban, Download, Gift, ShieldCheck, Trash2, UserX } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { blockUser, grantAccess } from "@/app/actions";
+import { blockUser, eraseUser, grantAccess } from "@/app/actions";
 import { ActionForm, ConfirmAction } from "@/components/action-form";
 import { PaymentStatusBadge } from "@/components/status";
-import { Badge, Card, CardBody, CardHeader, Field, KeyValue, Select, Table, Td, Textarea, Th, Tr, type Tone } from "@/components/ui";
+import { Badge, buttonClass, Card, CardBody, CardHeader, Field, KeyValue, Notice, Select, Table, Td, Textarea, Th, Tr, type Tone } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { fmtDate, fmtDateTime, fmtNumber } from "@/lib/format";
 import { requireRole } from "@/lib/guard";
@@ -46,8 +46,10 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
       <Link href="/users" className="mb-4 inline-flex items-center gap-1.5 text-xs text-ink-2 hover:text-ink"><Back className="size-3.5" />{d.users.title}</Link>
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-semibold text-ink">{u.username ? <bdi dir="ltr">@{u.username}</bdi> : `#${u.id}`}</h1>
-        {u.is_blocked ? <Badge tone="critical">{d.users.blocked}</Badge> : active ? <Badge tone="good">{d.common.active}</Badge> : <Badge>{d.common.inactive}</Badge>}
+        {u.deleted_at ? <Badge tone="neutral"><UserX className="size-3" />{d.users.erased}</Badge>
+          : u.is_blocked ? <Badge tone="critical">{d.users.blocked}</Badge> : active ? <Badge tone="good">{d.common.active}</Badge> : <Badge>{d.common.inactive}</Badge>}
       </div>
+      {u.deleted_at ? <Notice tone="neutral" icon={<UserX className="size-4" />} className="mb-4">{d.users.erasedNotice}</Notice> : null}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="flex flex-col gap-4 lg:col-span-2">
@@ -118,7 +120,7 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
               )}
             </CardBody>
           </Card>
-          {isAdmin ? (
+          {isAdmin && !u.deleted_at ? (
             <>
               <Card>
                 <CardHeader title={<span className="inline-flex items-center gap-2"><Gift className="size-4 text-muted" />{d.users.grant}</span>} subtitle={d.users.grantHint} />
@@ -144,6 +146,23 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
                     title={u.is_blocked ? d.users.unblock : d.users.block} reasonLabel={d.common.reason}
                     confirmLabel={d.common.confirm} cancelLabel={d.common.cancel} savedLabel={d.common.saved}
                   />
+                </CardBody>
+              </Card>
+              <Card>
+                <CardHeader title={d.users.privacy} />
+                <CardBody className="flex flex-col gap-3">
+                  <a href={`/users/${u.id}/export`} className={buttonClass("secondary", "sm", "self-start")} download>
+                    <Download className="size-3.5" />{d.users.exportData}
+                  </a>
+                  <div>
+                    <ConfirmAction
+                      action={eraseUser} hidden={{ user_id: String(u.id) }}
+                      trigger={<><Trash2 className="size-3.5" />{d.users.erase}</>} triggerVariant="danger"
+                      title={d.users.erase} body={d.users.eraseBody} reasonLabel={d.common.reason}
+                      phrase="DELETE" phraseLabel={d.users.eraseConfirm}
+                      confirmLabel={d.users.erase} cancelLabel={d.common.cancel} savedLabel={d.common.saved}
+                    />
+                  </div>
                 </CardBody>
               </Card>
             </>

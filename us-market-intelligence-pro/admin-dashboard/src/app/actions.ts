@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { apiBase, mutate, type ActionResult } from "@/lib/api";
+import { apiBase, forwardedFor, mutate, type ActionResult } from "@/lib/api";
 import { isLocale, LOCALE_COOKIE } from "@/lib/i18n";
 import { THEME_COOKIE } from "@/lib/prefs";
 import { isRole } from "@/lib/roles";
@@ -24,17 +24,18 @@ function invalid(e: z.ZodError): ActionResult {
 
 /* ---------------------------------------------------------------- session */
 
-export type LoginState = { error?: "invalid" | "unreachable" | "required" } | null;
+export type LoginState = { error?: "invalid" | "unreachable" | "required" | "rateLimited" } | null;
 
 export async function login(_: LoginState, fd: FormData): Promise<LoginState> {
   const key = str(fd, "key");
   if (!key) return { error: "required" };
   let res: Response;
   try {
-    res = await fetch(`${apiBase()}/admin/me`, { headers: { "X-API-Key": key }, cache: "no-store" });
+    res = await fetch(`${apiBase()}/admin/me`, { headers: { ...(await forwardedFor()), "X-API-Key": key }, cache: "no-store" });
   } catch {
     return { error: "unreachable" };
   }
+  if (res.status === 429) return { error: "rateLimited" };
   if (res.status === 401 || res.status === 403) return { error: "invalid" };
   if (!res.ok) return { error: "unreachable" };
   const me = (await res.json()) as { role?: unknown; actor?: unknown };
@@ -129,6 +130,15 @@ export async function blockUser(_: ActionResult | null, fd: FormData): Promise<A
   const id = z.coerce.number().int().positive().safeParse(str(fd, "user_id"));
   if (!id.success) return invalid(id.error);
   const r = await mutate(`/admin/users/${id.data}/block`, "POST", { blocked: str(fd, "blocked") === "1", reason: str(fd, "reason") });
+  revalidatePath(`/users/${id.data}`);
+  revalidatePath("/users");
+  return r;
+}
+
+export async function eraseUser(_: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const id = z.coerce.number().int().positive().safeParse(str(fd, "user_id"));
+  if (!id.success) return invalid(id.error);
+  const r = await mutate(`/admin/users/${id.data}/erase`, "POST", { reason: str(fd, "reason") });
   revalidatePath(`/users/${id.data}`);
   revalidatePath("/users");
   return r;

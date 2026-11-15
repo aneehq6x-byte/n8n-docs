@@ -154,3 +154,41 @@ test("screenshots for visual review", async ({ browser }) => {
     await ctx.close();
   }
 });
+
+test.describe("privacy (PDPL)", () => {
+  test("admin downloads a user's data export", async ({ page }) => {
+    await login(page, KEYS.admin);
+    await page.goto("/users?q=noura");
+    await page.locator("tbody a").first().click();
+    await page.waitForURL(/\/users\/\d+$/);
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByRole("link", { name: "تنزيل نسخة من بيانات المستخدم (JSON)" }).click(),
+    ]);
+    expect(download.suggestedFilename()).toMatch(/^user-\d+-data\.json$/);
+    const body = JSON.parse(await (await download.createReadStream()).toArray().then((c) => Buffer.concat(c).toString()));
+    expect(body.user.username).toBe("noura");
+    expect(Array.isArray(body.payments)).toBe(true);
+  });
+
+  test("erasing personal data requires typing DELETE and a reason", async ({ page }) => {
+    await login(page, KEYS.admin);
+    // any not-yet-erased user without a subscription, so the test can run repeatedly on one database
+    await page.goto("/users?status=inactive");
+    const target = page.locator("tbody a", { hasText: "@" }).first();
+    const name = (await target.innerText()).replace("@", "").trim();
+    await target.click();
+    await page.waitForURL(/\/users\/\d+$/);
+    const url = page.url();
+    await page.getByRole("button", { name: "حذف البيانات الشخصية" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("السبب").fill("PDPL request from the user (E2E)");
+    await expect(dialog.getByRole("button", { name: "حذف البيانات الشخصية" })).toBeDisabled();
+    await dialog.getByLabel("اكتب DELETE للتأكيد").fill("DELETE");
+    await dialog.getByRole("button", { name: "حذف البيانات الشخصية" }).click();
+    await expect(page.getByText("حُذفت البيانات الشخصية لهذا المستخدم")).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).not.toContainText(name);
+    await expect(page.getByRole("button", { name: "حذف البيانات الشخصية" })).toHaveCount(0);
+    expect(page.url()).toBe(url);
+  });
+});

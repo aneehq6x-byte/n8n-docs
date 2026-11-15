@@ -33,6 +33,7 @@ const ar = {
     submit: "دخول", invalid: "المفتاح غير صالح أو منتهي.", expired: "انتهت الجلسة، يرجى الدخول مجددًا.",
     logout: "تسجيل الخروج", role: { support: "دعم", analyst: "محلل", admin: "مدير" },
     unreachable: "الخادم الخلفي غير متاح حاليًا.",
+    rateLimited: "محاولات كثيرة غير صحيحة. انتظر عشر دقائق ثم حاول مجددًا.",
   },
   prefs: { language: "اللغة", theme: "المظهر", light: "فاتح", dark: "داكن", system: "حسب النظام" },
   alerts: {
@@ -101,6 +102,10 @@ const ar = {
     block: "حظر المستخدم", unblock: "إلغاء الحظر", grant: "منح وصول مجاني", grantPlan: "الخطة",
     grantHint: "يُسجّل في سجل التدقيق مع السبب، دون دفعة مالية.", autoRenew: "تجديد تلقائي",
     member: "عضو", notMember: "ليس عضوًا", plan: "الخطة", period: "الفترة",
+    erased: "بيانات شخصية محذوفة", privacy: "الخصوصية وحماية البيانات",
+    exportData: "تنزيل نسخة من بيانات المستخدم (JSON)", erase: "حذف البيانات الشخصية",
+    eraseBody: "سيُزال معرّف تيليجرام واسم المستخدم وكل بيانات تعريفية، ويُزال من القناة الخاصة وينتهي اشتراكه. تبقى السجلات المالية مجهولة الهوية للمدة النظامية. لا يمكن التراجع.",
+    eraseConfirm: "اكتب DELETE للتأكيد", erasedNotice: "حُذفت البيانات الشخصية لهذا المستخدم. تبقى سجلاته المالية مجهولة الهوية.",
     subStatus: { active: "نشط", cancelled: "التجديد موقوف", expired: "منتهٍ", refunded: "مسترد" },
   },
   payments: {
@@ -182,6 +187,7 @@ const en: DeepStrings<Dict> = {
     submit: "Sign in", invalid: "Invalid or revoked key.", expired: "Your session expired. Please sign in again.",
     logout: "Sign out", role: { support: "Support", analyst: "Analyst", admin: "Admin" },
     unreachable: "The backend is unavailable right now.",
+    rateLimited: "Too many failed attempts. Wait ten minutes and try again.",
   },
   prefs: { language: "Language", theme: "Theme", light: "Light", dark: "Dark", system: "System" },
   alerts: {
@@ -250,6 +256,10 @@ const en: DeepStrings<Dict> = {
     block: "Block user", unblock: "Unblock", grant: "Grant complimentary access", grantPlan: "Plan",
     grantHint: "Recorded in the audit log with the reason; no payment is created.", autoRenew: "Auto-renew",
     member: "Member", notMember: "Not a member", plan: "Plan", period: "Period",
+    erased: "Personal data erased", privacy: "Privacy & data protection",
+    exportData: "Download a copy of this user's data (JSON)", erase: "Erase personal data",
+    eraseBody: "The Telegram ID, username and all identifying data are removed, private-channel access is revoked and the subscription ends. Financial records are kept, anonymised, for the legal retention period. This cannot be undone.",
+    eraseConfirm: "Type DELETE to confirm", erasedNotice: "This user's personal data was erased. Financial records remain, anonymised.",
     subStatus: { active: "Active", cancelled: "Renewal off", expired: "Expired", refunded: "Refunded" },
   },
   payments: {

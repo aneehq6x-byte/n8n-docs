@@ -1,4 +1,5 @@
 import "server-only";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSession } from "./session";
 
@@ -27,6 +28,16 @@ function describe(body: unknown): string {
   return "request failed";
 }
 
+/**
+ * The admin's IP as seen by our reverse proxy, forwarded so the backend can rate-limit per person.
+ * The backend only honours it when UMIP_TRUST_FORWARDED_FOR is enabled.
+ */
+export async function forwardedFor(): Promise<Record<string, string>> {
+  const h = await headers();
+  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip")?.trim();
+  return ip ? { "X-Forwarded-For": ip.slice(0, 64) } : {};
+}
+
 /** Server-side call to the backend admin API with the session's key. */
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const session = await getSession();
@@ -36,12 +47,13 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     res = await fetch(`${apiBase()}${path}`, {
       ...init,
       cache: "no-store",
-      headers: { "content-type": "application/json", ...init?.headers, "X-API-Key": session.key },
+      headers: { "content-type": "application/json", ...init?.headers, ...(await forwardedFor()), "X-API-Key": session.key },
     });
   } catch {
     throw new ApiError(503, "backend unreachable");
   }
   if (res.status === 401) redirect("/login?expired=1");
+  if (res.status === 429) throw new ApiError(429, "rate limited");
   const body = res.status === 204 ? null : await res.json().catch(() => null);
   if (!res.ok) throw new ApiError(res.status, describe(body));
   return body as T;

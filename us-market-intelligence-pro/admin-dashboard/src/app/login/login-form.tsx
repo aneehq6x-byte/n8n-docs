@@ -6,7 +6,7 @@ import { useFormStatus } from "react-dom";
 import { login, type LoginState } from "@/app/actions";
 import { buttonClass } from "@/components/ui";
 
-type Labels = { apiKey: string; apiKeyHint: string; submit: string; invalid: string; unreachable: string; required: string; expired: string };
+type Labels = { apiKey: string; apiKeyHint: string; submit: string; invalid: string; unreachable: string; required: string; expired: string; rateLimited: string };
 
 function Submit({ label }: { label: string }) {
   const { pending } = useFormStatus();

@@ -29,7 +29,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             <LoginForm
               expired={sp.expired === "1"}
               labels={{ apiKey: d.auth.apiKey, apiKeyHint: d.auth.apiKeyHint, submit: d.auth.submit, invalid: d.auth.invalid,
-                unreachable: d.auth.unreachable, required: d.common.required, expired: d.auth.expired }}
+                unreachable: d.auth.unreachable, required: d.common.required, expired: d.auth.expired, rateLimited: d.auth.rateLimited }}
             />
           </div>
         </div>

@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     admin_api_keys: dict[str, str] = Field(default_factory=dict)
 
     # Rate limits (per client IP, per minute). Only trust X-Forwarded-For behind your own proxy.
-    admin_rate_per_minute: int = 120
+    admin_rate_per_minute: int = 300
     webhook_rate_per_minute: int = 600
     trust_forwarded_for: bool = False
 

@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from umip.api.admin import router as admin_router
 from umip.config import Settings, get_settings
 from umip.db import create_all, make_engine, make_sessionmaker
-from umip.api.security import client_ip
+from umip.api.security import client_ip, hash_key
 from umip.flags import KILL_SWITCH, get_flag
 from umip.ratelimit import Limit, build_limiter
 
@@ -56,7 +56,11 @@ def create_app(settings: Settings | None = None, maker: async_sessionmaker | Non
     async def rate_limit(request: Request, call_next):
         for prefix, limit in limits.items():
             if request.url.path.startswith(prefix):
-                v = await app.state.limiter.hit(f"{prefix}:{client_ip(request)}", limit)
+                # Per key when one is presented (many admins share the dashboard's IP); per client
+                # IP otherwise. Rotating random keys is caught by the failed-auth lockout per IP.
+                key = request.headers.get("x-api-key")
+                who = f"key:{hash_key(key)[7:23]}" if key else f"ip:{client_ip(request)}"
+                v = await app.state.limiter.hit(f"{prefix}:{who}", limit)
                 if not v.allowed:
                     return JSONResponse({"detail": "rate limit exceeded"}, status_code=429,
                                         headers={"Retry-After": str(v.retry_after)})

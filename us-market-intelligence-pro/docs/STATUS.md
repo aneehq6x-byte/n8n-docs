@@ -6,11 +6,11 @@
 
 | الفحص | النتيجة |
 |-------|---------|
-| `pytest -q` (SQLite) | **108 passed** |
-| `pytest -q` مع `UMIP_TEST_DATABASE_URL` على PostgreSQL 16 | **108 passed** |
+| `pytest -q` (SQLite) | **122 passed** |
+| `pytest -q` مع `UMIP_TEST_DATABASE_URL` على PostgreSQL 16 | **122 passed** |
 | لوحة الإدارة: `tsc` + `eslint` + `vitest` | نظيف · **9 passed** |
 | لوحة الإدارة: `next build` (إنتاج) | ناجح — 13 مسارًا |
-| لوحة الإدارة: Playwright E2E ضد الخادم الخلفي الحقيقي وPostgreSQL وبيانات seed_demo | **11 passed** على `next dev` وعلى بناء الإنتاج وعلى صورة الحاوية (3 تشغيلات متتالية نظيفة) |
+| لوحة الإدارة: Playwright E2E ضد الخادم الخلفي الحقيقي وPostgreSQL وبيانات seed_demo | **13 passed** على `next dev` وعلى بناء الإنتاج وعلى صورة الحاوية (3 تشغيلات متتالية نظيفة) |
 | رؤوس الأمان في الإنتاج | CSP، X-Frame-Options DENY، HSTS، nosniff، Referrer-Policy — متحقق منها |
 | صورة Docker للوحة | مرحلة التشغيل مبنية ومختبرة (مستخدم غير root، E2E ناجح)؛ مرحلة `npm ci` داخل البناء تعذّرت بسبب قيود شبكة بيئة العمل وليست خللًا في الملف |
 | `alembic upgrade head` → `downgrade base` → `upgrade head` → `alembic check` على PostgreSQL 16 | ناجح، "No new upgrade operations detected" |
@@ -74,7 +74,7 @@
 | Backtest على بيانات تاريخية حقيقية | يحتاج اشتراك بيانات — **لا توجد استراتيجية مثبتة الربحية حاليًا** |
 | الوكلاء: اقتصادي، جيوسياسي، صائد الأسهم | تحتاج مصادر أخبار/تقويم مرخصة |
 | بوابة الدفع الخارجية | بقرار تجاري وقانوني لاحق |
-| Rate limiting عام، حذف المستخدم، تجزئة المفاتيح، Sentry/Prometheus | SECURITY §"مطلوب" |
+| Sentry/Prometheus، SSO/2FA للوحة | SECURITY §"مطلوب" |
 | أزرار "عرض المخطط/متابعة" في الرسالة | الأزرار موجودة، معالجاتها غير مبنية |
 | Load tests | لم تُجرَ |
 

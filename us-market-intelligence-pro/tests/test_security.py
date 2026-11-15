@@ -67,18 +67,31 @@ async def test_general_admin_and_webhook_rate_limits(maker):
         assert (await c.get("/health")).status_code == 200  # health is not limited
 
 
-async def test_forwarded_for_is_ignored_unless_trusted(maker):
-    app = _app(maker, admin_rate_per_minute=1)
+async def test_admins_sharing_one_ip_have_separate_limits(maker):
+    settings = Settings(env="test", admin_api_keys={hash_key("key-a-123456"): "admin", hash_key("key-b-123456"): "admin"},
+                        admin_rate_per_minute=2)
+    app = create_app(settings, maker=maker, limiter=MemoryRateLimiter())
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
-        h = {"X-API-Key": "good-key-123456"}
-        assert (await c.get("/admin/me", headers={**h, "X-Forwarded-For": "1.1.1.1"})).status_code == 200
-        # spoofing a new IP does not reset the limit when the proxy is not trusted
-        assert (await c.get("/admin/me", headers={**h, "X-Forwarded-For": "2.2.2.2"})).status_code == 429
-    trusted = _app(maker, admin_rate_per_minute=1, trust_forwarded_for=True)
+        a = [(await c.get("/admin/me", headers={"X-API-Key": "key-a-123456"})).status_code for _ in range(3)]
+        b = (await c.get("/admin/me", headers={"X-API-Key": "key-b-123456"})).status_code
+        assert a == [200, 200, 429] and b == 200
+
+
+async def test_forwarded_for_is_ignored_unless_trusted(maker):
+    # failed-key lockout is per client IP: a spoofed header must not reset it
+    app = _app(maker)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
+        for i in range(AUTH_FAIL_LIMIT.count):
+            await c.get("/admin/me", headers={"X-API-Key": f"guess{i}", "X-Forwarded-For": f"10.0.0.{i}"})
+        r = await c.get("/admin/me", headers={"X-API-Key": "guess", "X-Forwarded-For": "10.9.9.9"})
+        assert r.status_code == 429
+    trusted = _app(maker, trust_forwarded_for=True)
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=trusted), base_url="http://t") as c:
-        h = {"X-API-Key": "good-key-123456"}
-        assert (await c.get("/admin/me", headers={**h, "X-Forwarded-For": "1.1.1.1"})).status_code == 200
-        assert (await c.get("/admin/me", headers={**h, "X-Forwarded-For": "2.2.2.2"})).status_code == 200
+        for i in range(AUTH_FAIL_LIMIT.count):
+            await c.get("/admin/me", headers={"X-API-Key": "guess", "X-Forwarded-For": "10.0.0.1"})
+        locked = await c.get("/admin/me", headers={"X-API-Key": "good-key-123456", "X-Forwarded-For": "10.0.0.1"})
+        other = await c.get("/admin/me", headers={"X-API-Key": "good-key-123456", "X-Forwarded-For": "10.0.0.2"})
+        assert locked.status_code == 429 and other.status_code == 200
 
 
 async def test_redis_limiter_shares_state_across_instances():

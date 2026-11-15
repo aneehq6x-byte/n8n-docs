@@ -73,7 +73,7 @@ export interface SignalEvent { from: string | null; to: string; actor: string; n
 export interface SignalDetail extends Signal { history: SignalEvent[]; allowed_transitions: SignalStatus[] }
 
 export interface UserRow {
-  id: number; telegram_id: number; username: string | null; language: string; role: string;
+  id: number; telegram_id: number; username: string | null; language: string; role: string; deleted_at: string | null;
   is_blocked: boolean; created_at: string; last_seen_at: string | null; accepted_terms: boolean;
   access_until: string | null; paid_total: number;
 }
