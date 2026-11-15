@@ -59,8 +59,8 @@ def _page(total: int, items: list, limit: int, offset: int) -> dict:
 
 @router.get("/me")
 async def me(actor: str = SUPPORT) -> dict:
-    _, role, key_tail = actor.split(":")
-    return {"actor": actor, "role": role, "key_hint": f"…{key_tail}"}
+    _, role, key_id = actor.split(":")
+    return {"actor": actor, "role": role, "key_id": key_id}
 
 
 # ------------------------------------------------------------------ overview

@@ -6,17 +6,20 @@ import hmac
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from umip.api.admin import router as admin_router
 from umip.config import Settings, get_settings
 from umip.db import create_all, make_engine, make_sessionmaker
+from umip.api.security import client_ip
 from umip.flags import KILL_SWITCH, get_flag
+from umip.ratelimit import Limit, build_limiter
 
 
 def create_app(settings: Settings | None = None, maker: async_sessionmaker | None = None,
-               dispatcher=None, bot=None, stars_gateway=None) -> FastAPI:
+               dispatcher=None, bot=None, stars_gateway=None, limiter=None) -> FastAPI:
     settings = settings or get_settings()
 
     @asynccontextmanager
@@ -40,6 +43,20 @@ def create_app(settings: Settings | None = None, maker: async_sessionmaker | Non
         from umip.bot.gateways import AiogramStarsGateway
         stars_gateway = AiogramStarsGateway(bot)
     app.state.stars_gateway = stars_gateway
+    app.state.limiter = limiter or build_limiter(settings.redis_url)
+    limits = {"/admin/": Limit(settings.admin_rate_per_minute, 60),
+              "/telegram/webhook": Limit(settings.webhook_rate_per_minute, 60)}
+
+    @app.middleware("http")
+    async def rate_limit(request: Request, call_next):
+        for prefix, limit in limits.items():
+            if request.url.path.startswith(prefix):
+                v = await app.state.limiter.hit(f"{prefix}:{client_ip(request)}", limit)
+                if not v.allowed:
+                    return JSONResponse({"detail": "rate limit exceeded"}, status_code=429,
+                                        headers={"Retry-After": str(v.retry_after)})
+                break
+        return await call_next(request)
 
     @app.get("/health")
     async def health() -> dict:

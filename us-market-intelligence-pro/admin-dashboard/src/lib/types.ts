@@ -2,7 +2,7 @@ import type { Role } from "./roles";
 
 export interface Page<T> { total: number; limit: number; offset: number; items: T[] }
 
-export interface Me { actor: string; role: Role; key_hint: string }
+export interface Me { actor: string; role: Role; key_id: string }
 
 export interface SeriesPoint {
   date: string;

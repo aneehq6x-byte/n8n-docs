@@ -44,8 +44,14 @@ class Settings(BaseSettings):
     # Signs invoice payloads so a forged/edited payload is rejected at pre-checkout.
     payload_signing_key: SecretStr = SecretStr("dev-only-change-me")
 
-    # Admin API: maps API key -> role. Provided as JSON in UMIP_ADMIN_API_KEYS.
+    # Admin API: maps "sha256:<hex>" key hash -> role, JSON in UMIP_ADMIN_API_KEYS.
+    # Plaintext keys are accepted only outside prod. See `python -m umip.main new-admin-key`.
     admin_api_keys: dict[str, str] = Field(default_factory=dict)
+
+    # Rate limits (per client IP, per minute). Only trust X-Forwarded-For behind your own proxy.
+    admin_rate_per_minute: int = 120
+    webhook_rate_per_minute: int = 600
+    trust_forwarded_for: bool = False
 
     # Market data
     market_data_provider: str = "mock"  # mock | massive
@@ -80,6 +86,11 @@ class Settings(BaseSettings):
                 problems.append("telegram test environment enabled in prod")
             if self.database_url.startswith("sqlite"):
                 problems.append("use PostgreSQL in prod")
+            from umip.api.security import is_hashed
+            if any(not is_hashed(k) for k in self.admin_api_keys):
+                problems.append("UMIP_ADMIN_API_KEYS must contain sha256 key hashes, not keys")
+            if not self.redis_url:
+                problems.append("UMIP_REDIS_URL is required in prod (shared rate limits)")
         return problems
 
 

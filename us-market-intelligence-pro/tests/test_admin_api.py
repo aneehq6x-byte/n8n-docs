@@ -49,7 +49,9 @@ async def _paying_user(maker, tg=111, plan="quarterly", charge="c1"):
 
 async def test_me_reports_role(client):
     r = (await client.get("/admin/me", headers=ANA)).json()
-    assert r["role"] == "analyst" and r["key_hint"] == "…0002"
+    from umip.api.security import hash_key
+    assert r["role"] == "analyst" and r["key_id"] == hash_key("ana-key-0002")[7:15]
+    assert "0002" not in r["actor"]  # no part of the raw key is ever logged
 
 
 async def test_overview_and_business_metrics(client, maker):

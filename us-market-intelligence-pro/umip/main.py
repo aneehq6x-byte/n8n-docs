@@ -87,10 +87,16 @@ async def _polling(settings) -> None:
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     settings = get_settings()
-    problems = settings.require_production_safety()
-    if problems:
-        raise SystemExit("refusing to start: " + "; ".join(problems))
     cmd = sys.argv[1] if len(sys.argv) > 1 else "api"
+    problems = settings.require_production_safety()
+    if problems and cmd != "new-admin-key":
+        raise SystemExit("refusing to start: " + "; ".join(problems))
+    if cmd == "new-admin-key":
+        from umip.api.security import new_key
+        key, digest = new_key()
+        print(f"key (give to the admin once, never store):\n  {key}\n"
+              f"config entry for UMIP_ADMIN_API_KEYS:\n  \"{digest}\": \"admin|analyst|support\"")
+        return
     if cmd == "seed":
         asyncio.run(_seed(settings))
     elif cmd == "polling":
