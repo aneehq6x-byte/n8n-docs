@@ -223,6 +223,32 @@ async def on_join_request(req: ChatJoinRequest, maker: async_sessionmaker,
                                   req.invite_link.invite_link if req.invite_link else None)
 
 
+async def on_deleteme(message: Message, maker: async_sessionmaker) -> None:
+    async with maker() as s:
+        u = await get_or_create_user(s, message.from_user)
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
+        text=t("deleteme_confirm", u.language), callback_data="privacy:erase")]])
+    await message.answer(t("deleteme", u.language), reply_markup=kb)
+
+
+async def on_erase_confirm(cb: CallbackQuery, maker: async_sessionmaker) -> None:
+    from umip.privacy import PrivacyError, erase_user
+    async with maker() as s:
+        u = await s.scalar(select(User).where(User.telegram_id == cb.from_user.id))
+        if u is None:
+            await cb.answer()
+            return
+        lang = u.language
+        try:
+            await erase_user(s, u, f"user:{u.id}", "requested by the user in the bot",
+                             AiogramChatGateway(cb.bot))
+        except PrivacyError:
+            await cb.answer(t("deleteme_failed", lang), show_alert=True)
+            return
+    await cb.message.answer(t("deleteme_done", lang))
+    await cb.answer()
+
+
 async def on_paysupport(message: Message, maker: async_sessionmaker) -> None:
     async with maker() as s:
         u = await get_or_create_user(s, message.from_user)
@@ -233,6 +259,8 @@ def build_router() -> Router:
     r = Router(name="main")
     r.message.register(on_start, CommandStart())
     r.message.register(on_paysupport, Command("paysupport"))
+    r.message.register(on_deleteme, Command("deleteme"))
+    r.callback_query.register(on_erase_confirm, F.data == "privacy:erase")
     r.callback_query.register(on_accept, F.data == "terms:accept")
     r.callback_query.register(on_lang, F.data == "lang:toggle")
     r.callback_query.register(on_menu, F.data.startswith("m:"))

@@ -108,7 +108,7 @@ async def overview(request: Request, actor: str = SUPPORT) -> dict:
 # --------------------------------------------------------------------- users
 
 def _user_row(u: User, end, paid_total: int) -> dict:
-    return {"id": u.id, "telegram_id": u.telegram_id, "username": u.username,
+    return {"id": u.id, "telegram_id": u.telegram_id, "username": u.username, "deleted_at": u.deleted_at,
             "language": u.language, "role": u.role.value, "is_blocked": u.is_blocked,
             "created_at": u.created_at, "last_seen_at": u.last_seen_at,
             "accepted_terms": u.accepted_terms_at is not None,
@@ -186,6 +186,38 @@ async def block_user(request: Request, user_id: int, b: BlockBody, actor: str = 
                     reason=b.reason)
         await s.commit()
         return {"id": u.id, "is_blocked": u.is_blocked}
+
+
+@router.get("/users/{user_id}/export")
+async def export_user(request: Request, user_id: int, actor: str = ADMIN) -> dict:
+    """Data-subject access request: everything stored about this person."""
+    from umip.privacy import export_user_data
+    async with _maker(request)() as s:
+        u = await s.get(User, user_id)
+        if u is None:
+            raise HTTPException(404, "user not found")
+        data = await export_user_data(s, u)
+        await audit(s, actor, "user.exported", f"user:{u.id}")
+        await s.commit()
+        return data
+
+
+class EraseBody(BaseModel):
+    reason: str = Field(min_length=3, max_length=300)
+
+
+@router.post("/users/{user_id}/erase")
+async def erase_user_endpoint(request: Request, user_id: int, b: EraseBody, actor: str = ADMIN) -> dict:
+    """Erase personal data (anonymise); financial records are retained."""
+    from umip.privacy import PrivacyError, erase_user
+    async with _maker(request)() as s:
+        u = await s.get(User, user_id)
+        if u is None:
+            raise HTTPException(404, "user not found")
+        try:
+            return await erase_user(s, u, actor, b.reason, request.app.state.chat_gateway)
+        except PrivacyError as e:
+            raise HTTPException(409, str(e)) from e
 
 
 class GrantBody(BaseModel):

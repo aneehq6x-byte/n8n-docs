@@ -19,7 +19,8 @@ from umip.ratelimit import Limit, build_limiter
 
 
 def create_app(settings: Settings | None = None, maker: async_sessionmaker | None = None,
-               dispatcher=None, bot=None, stars_gateway=None, limiter=None) -> FastAPI:
+               dispatcher=None, bot=None, stars_gateway=None, limiter=None,
+               chat_gateway=None) -> FastAPI:
     settings = settings or get_settings()
 
     @asynccontextmanager
@@ -43,6 +44,10 @@ def create_app(settings: Settings | None = None, maker: async_sessionmaker | Non
         from umip.bot.gateways import AiogramStarsGateway
         stars_gateway = AiogramStarsGateway(bot)
     app.state.stars_gateway = stars_gateway
+    if chat_gateway is None and bot is not None:
+        from umip.bot.gateways import AiogramChatGateway
+        chat_gateway = AiogramChatGateway(bot)
+    app.state.chat_gateway = chat_gateway
     app.state.limiter = limiter or build_limiter(settings.redis_url)
     limits = {"/admin/": Limit(settings.admin_rate_per_minute, 60),
               "/telegram/webhook": Limit(settings.webhook_rate_per_minute, 60)}

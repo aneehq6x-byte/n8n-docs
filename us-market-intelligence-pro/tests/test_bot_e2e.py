@@ -165,3 +165,22 @@ async def test_paysupport_command(env):
     bot, dp, sess, settings, maker = env
     await feed(env, msg("/paysupport"))
     assert "دعم المدفوعات" in sess.of(SendMessage)[-1].text
+
+
+async def test_deleteme_flow_erases_and_allows_fresh_start(env):
+    from umip.models import User as U
+    bot, dp, sess, settings, maker = env
+    await feed(env, msg("/start"))
+    await feed(env, msg("/deleteme"))
+    kb = sess.of(SendMessage)[-1].reply_markup.inline_keyboard
+    assert kb[0][0].callback_data == "privacy:erase"
+    await feed(env, cb("privacy:erase"))
+    assert "تم حذف بياناتك" in sess.of(SendMessage)[-1].text
+    async with maker() as s:
+        assert await s.scalar(select(U).where(U.telegram_id == 555)) is None
+        erased = (await s.scalars(select(U).where(U.deleted_at.is_not(None)))).all()
+        assert len(erased) == 1 and erased[0].username is None
+    await feed(env, msg("/start"))  # same person can start over as a new, empty account
+    async with maker() as s:
+        fresh = await s.scalar(select(U).where(U.telegram_id == 555))
+        assert fresh is not None and fresh.deleted_at is None and fresh.accepted_terms_at is None

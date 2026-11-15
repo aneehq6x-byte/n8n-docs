@@ -83,6 +83,19 @@ T = {
         "en": "💳 Payment support: send the transaction ID and a description here and the team "
               "will review it. Refunds are made in Telegram Stars per the terms of use.",
     },
+    "deleteme": {
+        "ar": "🗑 حذف بياناتك الشخصية:\n• سيُزال اسم المستخدم ومعرّف تيليجرام وأي بيانات تعريفية.\n"
+              "• سيتوقف وصولك للقناة الخاصة فورًا وينتهي اشتراكك الحالي.\n"
+              "• تبقى سجلات الدفع المالية مجهولة الهوية للمدة النظامية.\n• لا يمكن التراجع.",
+        "en": "🗑 Delete your personal data:\n• Your username, Telegram ID and identifying data are removed.\n"
+              "• Private-channel access ends now and your current subscription ends.\n"
+              "• Payment records are kept, anonymised, for the legal retention period.\n• This cannot be undone.",
+    },
+    "deleteme_confirm": {"ar": "تأكيد الحذف النهائي", "en": "Confirm permanent deletion"},
+    "deleteme_done": {"ar": "تم حذف بياناتك الشخصية. شكرًا لاستخدامك الخدمة.",
+                      "en": "Your personal data has been deleted. Thank you for using the service."},
+    "deleteme_failed": {"ar": "تعذّر إكمال الحذف الآن؛ تواصل مع الدعم الفني.",
+                        "en": "Deletion could not be completed now; please contact support."},
     "coming": {"ar": "قريبًا.", "en": "Coming soon."},
 }
 

@@ -50,6 +50,9 @@ class User(Base):
     created_at: Mapped[datetime] = _ts(server_default=func.now())
     last_seen_at: Mapped[datetime | None] = _ts(nullable=True)
     is_blocked: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Set when personal data was erased (PDPL). The row stays so financial records keep
+    # their foreign keys; every personal field is cleared.
+    deleted_at: Mapped[datetime | None] = _ts(nullable=True)
 
 
 # ------------------------------------------------------------- subscriptions
