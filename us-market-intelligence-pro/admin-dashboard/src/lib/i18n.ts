@@ -9,7 +9,7 @@ export function isLocale(v: unknown): v is Locale {
 }
 
 const ar = {
-  brand: { name: "US Market Intelligence Pro", short: "UMIP", console: "لوحة الإدارة" },
+  brand: { name: "Rainr", short: "Rainr", console: "لوحة الإدارة" },
   nav: {
     overview: "نظرة عامة", signals: "الإشارات", users: "المشتركون", payments: "المدفوعات",
     plans: "الخطط والكوبونات", performance: "الأداء", system: "النظام والتشغيل", audit: "سجل التدقيق",
@@ -35,7 +35,7 @@ const ar = {
     unreachable: "الخادم الخلفي غير متاح حاليًا.",
     rateLimited: "محاولات كثيرة غير صحيحة. انتظر عشر دقائق ثم حاول مجددًا.",
   },
-  prefs: { language: "اللغة", theme: "المظهر", light: "فاتح", dark: "داكن", system: "حسب النظام" },
+  prefs: { language: "اللغة" },
   alerts: {
     kill_switch: "مفتاح الإيقاف الطارئ مفعّل — النشر متوقف بالكامل.",
     dead_letters: "رسائل فشل إرسالها نهائيًا", safety: "مشكلة أمان تمنع الإنتاج",
@@ -163,7 +163,7 @@ export type Dict = typeof ar;
 type DeepStrings<T> = { [K in keyof T]: T[K] extends string ? string : DeepStrings<T[K]> };
 
 const en: DeepStrings<Dict> = {
-  brand: { name: "US Market Intelligence Pro", short: "UMIP", console: "Admin console" },
+  brand: { name: "Rainr", short: "Rainr", console: "Admin console" },
   nav: {
     overview: "Overview", signals: "Signals", users: "Subscribers", payments: "Payments",
     plans: "Plans & coupons", performance: "Performance", system: "System & ops", audit: "Audit log",
@@ -189,7 +189,7 @@ const en: DeepStrings<Dict> = {
     unreachable: "The backend is unavailable right now.",
     rateLimited: "Too many failed attempts. Wait ten minutes and try again.",
   },
-  prefs: { language: "Language", theme: "Theme", light: "Light", dark: "Dark", system: "System" },
+  prefs: { language: "Language" },
   alerts: {
     kill_switch: "Kill switch is ON — all publishing is halted.",
     dead_letters: "messages permanently failed to send", safety: "Production safety issue",

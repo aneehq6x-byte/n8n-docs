@@ -125,23 +125,25 @@ test("kill switch requires a typed confirmation and can be reversed", async ({ p
   await expect(page.locator("header").getByText("مفتاح الإيقاف الطارئ")).toHaveCount(0);
 });
 
-test("language and theme switches persist", async ({ page }) => {
+test("Rainr identity: language switch, light cream only, approved disclaimer", async ({ page }) => {
   await login(page, KEYS.admin);
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+  await expect(page.locator("aside").getByText("Rainr")).toBeVisible();
+  // paper background, no theme switch (dark style is not enabled per the guide)
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(244, 237, 226)");
+  await expect(page.getByRole("button", { name: /Dark|داكن/ })).toHaveCount(0);
+  await expect(page.locator("footer")).toHaveText("محتوى تعليمي وتحليلي فقط، وليس توصية.");
+  expect(await page.evaluate(() => getComputedStyle(document.querySelector("h1")!).fontFamily)).toMatch(/Kufi/i);
   await page.getByRole("button", { name: "English" }).click();
   await expect(page.locator("html")).toHaveAttribute("dir", "ltr");
   await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
-  await page.getByRole("button", { name: "Dark" }).click();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await page.reload();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await page.getByRole("button", { name: "System" }).click();
+  await expect(page.locator("footer")).toHaveText("محتوى تعليمي وتحليلي فقط، وليس توصية.");
   await page.getByRole("button", { name: "العربية" }).click();
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
 });
 
 test("screenshots for visual review", async ({ browser }) => {
-  const variants = [["ar", "light", 1440, 1000], ["en", "dark", 1440, 1000], ["ar", "light", 390, 844]] as const;
+  const variants = [["ar", "light", 1440, 1000], ["en", "light", 1440, 1000], ["ar", "light", 390, 844]] as const;
   for (const [locale, scheme, w, h] of variants) {
     const ctx = await browser.newContext({ viewport: { width: w, height: h }, colorScheme: scheme });
     const page = await ctx.newPage();

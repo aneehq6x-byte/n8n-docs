@@ -249,7 +249,7 @@ export function DivergingBars({ rows, kind, locale }: { rows: { label: string; v
                 style={{
                   left: pos ? "calc(50% + 1px)" : `calc(${50 - w}% - 1px)`,
                   width: `${w}%`,
-                  background: pos ? "var(--series-1)" : "var(--series-neg)",
+                  background: pos ? "var(--series-pos)" : "var(--series-neg)",
                   borderRadius: pos ? "0 4px 4px 0" : "4px 0 0 4px",
                 }}
               />

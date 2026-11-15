@@ -107,7 +107,7 @@ def test_message_contains_required_fields():
                          "option": None})
     text = render_signal(s)["text"]
     for needle in ("UM-1", "SPY", "603.00", "598.00", "EDT", "Riyadh", "Massive",
-                   "WAITING FOR ENTRY", "x&lt;y", "ليس نصيحة"):
+                   "WAITING FOR ENTRY", "x&lt;y", "محتوى تعليمي وتحليلي فقط، وليس توصية.", "Rainr"):
         assert needle in text
 
 

@@ -56,7 +56,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
       ) : null}
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-        <div className="col-span-2 rounded-xl border border-line bg-surface p-5 shadow-card xl:col-span-1 xl:row-span-2">
+        <div className="col-span-2 rounded-2xl border border-line bg-surface p-5 xl:col-span-1 xl:row-span-2">
           <p className="text-xs font-medium text-ink-2">{d.overview.activeSubs}</p>
           <p className="mt-3 text-5xl font-semibold tracking-tight text-ink">{fmtNumber(b.active_subscribers, locale)}</p>
           <p className="mt-2 text-xs text-muted">{d.overview.totalUsers}: <span className="tnum">{fmtNumber(b.total_users, locale)}</span></p>

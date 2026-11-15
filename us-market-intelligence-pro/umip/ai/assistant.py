@@ -24,7 +24,7 @@ from umip.ai.agents import Capability, require
 from umip.models import AIUsage
 from umip.timeutil import NY, utcnow
 
-SYSTEM_PROMPT = """You are the research assistant of "US Market Intelligence Pro", answering \
+SYSTEM_PROMPT = """You are the research assistant of "Rainr", answering \
 subscribers in the language they write in (Arabic by default).
 
 You explain published signals, support/resistance, economic events, option risks, why an \

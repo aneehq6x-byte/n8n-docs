@@ -6,7 +6,6 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { apiBase, forwardedFor, mutate, type ActionResult } from "@/lib/api";
 import { isLocale, LOCALE_COOKIE } from "@/lib/i18n";
-import { THEME_COOKIE } from "@/lib/prefs";
 import { isRole } from "@/lib/roles";
 import { createSession, destroySession } from "@/lib/session";
 
@@ -55,13 +54,6 @@ export async function setLocale(fd: FormData): Promise<void> {
   revalidatePath("/", "layout");
 }
 
-export async function setTheme(fd: FormData): Promise<void> {
-  const v = str(fd, "theme");
-  const jar = await cookies();
-  if (v === "light" || v === "dark") jar.set(THEME_COOKIE, v, prefCookie);
-  else jar.delete(THEME_COOKIE);
-  revalidatePath("/", "layout");
-}
 
 /* ---------------------------------------------------------------- signals */
 

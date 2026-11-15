@@ -28,8 +28,9 @@ def render_signal(sig: Signal, lang: str = "ar") -> dict:
     spec = get_spec(sig.symbol)
     dir_label = ("CALL" if sig.direction == "long" else "PUT") if opt else \
         ("LONG" if sig.direction == "long" else "SHORT")
-    lines = ["<b>US MARKET INTELLIGENCE PRO</b>", ""]
-    lines.append("🚨 <b>NEW OPTIONS TRADE SETUP</b>" if opt else "🚨 <b>NEW TRADE SETUP</b>")
+    # Rainr identity: the name is never translated, calm wording, no hype emoji.
+    lines = ["<b>\u2068Rainr\u2069</b>", ""]
+    lines.append("<b>إعداد صفقة خيارات</b>" if opt else "<b>إعداد صفقة</b>")
     if sig.is_mock_data:
         lines.append("🧪 <b>TEST DATA — NOT A REAL SIGNAL</b>")
     lines += ["", f"المرجع: <code>{sig.ref}</code>", f"الأصل: <b>{escape(sig.symbol)}</b>",
@@ -53,7 +54,8 @@ def render_signal(sig: Signal, lang: str = "ar") -> dict:
         f"مصدر البيانات: {escape(o['data_source'])} @ "
         f"{format_dual(datetime.fromisoformat(o['data_as_of']))}",
         f"الحالة: {STATUS_AR.get(sig.status.value, sig.status.value)}", "",
-        "<i>محتوى تعليمي وليس نصيحة استثمارية شخصية. التداول ينطوي على مخاطر عالية.</i>",
+        "<i>محتوى تعليمي وتحليلي فقط، وليس توصية.</i>",
+        "<i>التداول ينطوي على مخاطر عالية.</i>",
     ]
     buttons = [[{"text": "تفاصيل التحليل", "callback_data": f"sig:detail:{sig.ref}"},
                 {"text": "آخر تحديث", "callback_data": f"sig:status:{sig.ref}"}],

@@ -1,11 +1,11 @@
-import { LogOut, ShieldCheck, AlertOctagon, FlaskConical } from "lucide-react";
+import { LogOut, AlertOctagon, FlaskConical } from "lucide-react";
 import Link from "next/link";
 import { logout } from "@/app/actions";
 import { MobileNav, SideNav, type NavSection } from "@/components/nav";
-import { PrefsBar } from "@/components/prefs";
+import { BrandName, Disclaimer, PrefsBar } from "@/components/prefs";
 import { Badge } from "@/components/ui";
 import { api } from "@/lib/api";
-import { getI18n, getTheme } from "@/lib/prefs";
+import { getI18n } from "@/lib/prefs";
 import { hasRole } from "@/lib/roles";
 import { requireRole } from "@/lib/guard";
 import type { SystemInfo } from "@/lib/types";
@@ -20,7 +20,7 @@ async function systemStatus(): Promise<SystemInfo | null> {
 
 export default async function ConsoleLayout({ children }: { children: React.ReactNode }) {
   const session = await requireRole("support");
-  const [{ locale, d }, theme] = await Promise.all([getI18n(), getTheme()]);
+  const { locale, d } = await getI18n();
   const isAnalyst = hasRole(session.role, "analyst");
   const isAdmin = hasRole(session.role, "admin");
   const sys = await systemStatus();
@@ -54,11 +54,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
 
   const brand = (
     <Link href="/" className="flex items-center gap-2.5">
-      <span className="flex size-8 items-center justify-center rounded-lg bg-accent text-accent-ink"><ShieldCheck className="size-4" /></span>
-      <span className="leading-tight">
-        <span className="block text-sm font-semibold text-ink">{d.brand.short}</span>
-        <span className="block text-[0.6875rem] text-muted">{d.brand.console}</span>
-      </span>
+      <BrandName console={d.brand.console} />
     </Link>
   );
 
@@ -82,7 +78,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
               <span className="hidden sm:block"><Badge tone="warning"><FlaskConical className="size-3" />MOCK DATA</Badge></span>
             ) : null}
           </div>
-          <PrefsBar locale={locale} theme={theme} d={d} />
+          <PrefsBar locale={locale} d={d} />
           <div className="hidden items-center gap-2 border-s border-line ps-3 sm:flex">
             <Badge tone="accent" dot={false}>{d.auth.role[session.role]}</Badge>
             <span className="max-w-32 truncate text-xs text-muted" dir="ltr" title={session.actor}>…{session.actor.slice(-4)}</span>
@@ -95,6 +91,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
           </form>
         </header>
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:py-8">{children}</main>
+        <footer className="mx-auto w-full max-w-7xl border-t border-line px-4 py-4 sm:px-6"><Disclaimer /></footer>
       </div>
     </div>
   );

@@ -26,10 +26,10 @@ PREMIUM_SECTIONS = {"opportunities", "spx", "ndx", "stocks", "options", "assista
 
 T = {
     "welcome": {
-        "ar": "مرحبًا بك في US Market Intelligence Pro.\nتحليلات وأفكار تداول للسوق الأمريكي — "
-              "لأغراض تعليمية ومعلوماتية. اختر من القائمة:",
-        "en": "Welcome to US Market Intelligence Pro.\nUS market analysis and trade ideas — "
-              "educational/informational. Choose an option:",
+        "ar": "مرحبًا بك في \u2068Rainr\u2069.\nنشرح لك ما يحدث في السوق الأمريكي بلغة بسيطة.\n"
+              "محتوى تعليمي وتحليلي فقط، وليس توصية.\nاختر من القائمة:",
+        "en": "Welcome to Rainr.\nWe explain what is happening in the US market in plain language.\n"
+              "محتوى تعليمي وتحليلي فقط، وليس توصية.\nChoose an option:",
     },
     "terms_required": {
         "ar": "قبل المتابعة يجب الموافقة على شروط الاستخدام وإفصاح المخاطر.",

@@ -93,7 +93,7 @@ export function ConfirmAction({
       {state?.ok ? <ResultMessage result={state} savedLabel={savedLabel} /> : null}
       <dialog
         ref={ref}
-        className="m-auto w-[min(28rem,calc(100vw-2rem))] rounded-xl border border-line bg-surface p-0 text-ink shadow-2xl"
+        className="m-auto w-[min(28rem,calc(100vw-2rem))] rounded-2xl border border-line bg-surface p-0 text-ink shadow-2xl"
         aria-labelledby="confirm-title"
       >
         <form action={formAction} className="flex flex-col gap-4 p-5">

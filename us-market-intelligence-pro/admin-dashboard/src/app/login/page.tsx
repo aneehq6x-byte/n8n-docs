@@ -1,8 +1,7 @@
-import { ShieldCheck } from "lucide-react";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { PrefsBar } from "@/components/prefs";
-import { getI18n, getTheme } from "@/lib/prefs";
+import { BrandName, Disclaimer, PrefsBar } from "@/components/prefs";
+import { getI18n } from "@/lib/prefs";
 import { getSession } from "@/lib/session";
 import { LoginForm } from "./login-form";
 
@@ -10,20 +9,17 @@ export const metadata: Metadata = { title: "Sign in" };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ expired?: string }> }) {
   if (await getSession()) redirect("/");
-  const [{ locale, d }, theme, sp] = await Promise.all([getI18n(), getTheme(), searchParams]);
+  const [{ locale, d }, sp] = await Promise.all([getI18n(), searchParams]);
   return (
     <main className="flex min-h-dvh flex-col">
-      <div className="flex justify-end p-4"><PrefsBar locale={locale} theme={theme} d={d} /></div>
+      <div className="flex justify-end p-4"><PrefsBar locale={locale} d={d} /></div>
       <div className="flex flex-1 items-center justify-center px-4 pb-16">
         <div className="w-full max-w-sm">
-          <div className="mb-8 flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-accent text-accent-ink"><ShieldCheck className="size-5" /></div>
-            <div>
-              <p className="text-sm font-semibold text-ink">{d.brand.name}</p>
-              <p className="text-xs text-muted">{d.brand.console}</p>
-            </div>
+          <div className="mb-8 flex flex-col gap-3">
+            <BrandName console={d.brand.console} />
+            <span className="rainr-rule-short" aria-hidden />
           </div>
-          <div className="rounded-2xl border border-line bg-surface p-6 shadow-card">
+          <div className="rounded-2xl border border-line bg-surface p-6">
             <h1 className="text-lg font-semibold text-ink">{d.auth.title}</h1>
             <p className="mb-6 mt-1 text-sm text-ink-2">{d.auth.subtitle}</p>
             <LoginForm
@@ -32,6 +28,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
                 unreachable: d.auth.unreachable, required: d.common.required, expired: d.auth.expired, rateLimited: d.auth.rateLimited }}
             />
           </div>
+          <div className="mt-6"><Disclaimer /></div>
         </div>
       </div>
     </main>

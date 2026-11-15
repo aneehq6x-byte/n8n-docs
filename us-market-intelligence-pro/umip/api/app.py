@@ -32,7 +32,7 @@ def create_app(settings: Settings | None = None, maker: async_sessionmaker | Non
             app.state.maker = make_sessionmaker(engine)
         yield
 
-    app = FastAPI(title="US Market Intelligence Pro", lifespan=lifespan,
+    app = FastAPI(title="Rainr API", lifespan=lifespan,
                   docs_url=None if settings.env == "prod" else "/docs",
                   openapi_url=None if settings.env == "prod" else "/openapi.json")
     app.state.settings = settings

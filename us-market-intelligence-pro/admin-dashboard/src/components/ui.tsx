@@ -19,7 +19,7 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
 export function Card({ className, children, ...rest }: ComponentProps<"section">) {
   return (
     <section
-      className={clsx("rounded-xl border border-line bg-surface shadow-card", className)}
+      className={clsx("rounded-2xl border border-line bg-surface", className)}
       {...rest}
     >
       {children}
@@ -93,7 +93,7 @@ const DOTS: Record<Tone, string> = {
 /** Status is always label + dot, never colour alone. */
 export function Badge({ tone = "neutral", children, dot = true, className }: { tone?: Tone; children: ReactNode; dot?: boolean; className?: string }) {
   return (
-    <span className={clsx("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium", TONES[tone], className)}>
+    <span className={clsx("inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-0.5 text-xs font-medium", TONES[tone], className)}>
       {dot ? <span aria-hidden className={clsx("size-1.5 rounded-full", DOTS[tone])} /> : null}
       {children}
     </span>
@@ -113,7 +113,7 @@ export function Field({ label, hint, error, children, htmlFor }: { label: string
 }
 
 const control =
-  "h-9 w-full rounded-lg border border-line-strong bg-surface px-3 text-sm text-ink placeholder:text-muted " +
+  "h-9 w-full rounded-lg border border-line-strong bg-surface-2 px-3 text-sm text-ink placeholder:text-muted " +
   "transition-colors hover:border-ink-2/40 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20";
 
 export function Input({ className, ...rest }: ComponentProps<"input">) {
@@ -145,7 +145,7 @@ export function Th({ className, ...rest }: ComponentProps<"th">) {
   return (
     <th
       scope="col"
-      className={clsx("whitespace-nowrap border-b border-line bg-surface px-4 py-2.5 text-start text-xs font-medium text-muted", className)}
+      className={clsx("whitespace-nowrap border-b border-line px-4 py-2.5 text-start text-xs font-medium text-muted", className)}
       {...rest}
     />
   );
@@ -156,7 +156,7 @@ export function Td({ className, ...rest }: ComponentProps<"td">) {
 }
 
 export function Tr({ className, ...rest }: ComponentProps<"tr">) {
-  return <tr className={clsx("transition-colors hover:bg-surface-2/60", className)} {...rest} />;
+  return <tr className={clsx("transition-colors hover:bg-surface-3", className)} {...rest} />;
 }
 
 /* -------------------------------------------------------------- feedback */
@@ -196,7 +196,7 @@ export function StatTile({ label, value, hint, delta, href }: {
       </div>
     </>
   );
-  const cls = "block rounded-xl border border-line bg-surface p-4 shadow-card";
+  const cls = "block rounded-2xl border border-line bg-surface p-4";
   return href ? <Link href={href} className={clsx(cls, "transition-colors hover:border-line-strong")}>{inner}</Link> : <div className={cls}>{inner}</div>;
 }
 
