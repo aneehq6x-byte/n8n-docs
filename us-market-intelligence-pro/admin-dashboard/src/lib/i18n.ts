@@ -74,7 +74,7 @@ const ar = {
     tracking: {
       title: "المتابعة الآلية", entryFill: "سعر الدخول المنفذ", workingStop: "الوقف الحالي", lastPrice: "آخر سعر",
       mae: "أقصى تراجع (MAE)", mfe: "أقصى صعود (MFE)", unrealized: "النتيجة غير المحققة", updated: "آخر تحديث",
-      notStarted: "لم تُعالج أي شمعة بعد.", assumed: "مفترض — منتصف نطاق الدخول (فُعّلت يدويًا)", runNow: "تشغيل المتابعة الآن", ran: "اكتملت دورة المتابعة",
+      notStarted: "لم تُعالج أي شمعة بعد.", assumed: "مفترض: منتصف نطاق الدخول، فُعّلت يدويًا", runNow: "تشغيل المتابعة الآن", ran: "اكتملت دورة المتابعة",
       model: "وحدة واحدة · الوقف إلى نقطة الدخول بعد الهدف 1 · إغلاق قبل نهاية الجلسة بـ5 دقائق · R بعد التكاليف · يُفترض ضرب الوقف أولًا عند الالتباس.",
     },
     features: "مؤشرات الإعداد", rejectConfirm: "سيتم رفض الإشارة نهائيًا وتسجيل السبب.",
@@ -223,7 +223,7 @@ const en: DeepStrings<Dict> = {
     tracking: {
       title: "Automatic tracking", entryFill: "Entry fill", workingStop: "Working stop", lastPrice: "Last price",
       mae: "Max adverse (MAE)", mfe: "Max favourable (MFE)", unrealized: "Unrealised result", updated: "Last update",
-      notStarted: "No bars processed yet.", assumed: "assumed — entry-zone midpoint (activated manually)", runNow: "Run tracking now", ran: "Tracking pass completed",
+      notStarted: "No bars processed yet.", assumed: "assumed: entry-zone midpoint, activated manually", runNow: "Run tracking now", ran: "Tracking pass completed",
       model: "Single unit · stop to entry after target 1 · flattened 5 min before the close · R after costs · stop assumed first when ambiguous.",
     },
     features: "Setup features", rejectConfirm: "The signal will be permanently rejected and the reason recorded.",
